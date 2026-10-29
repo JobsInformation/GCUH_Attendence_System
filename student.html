@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GCUH IT | Student Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        body {
+            background-color: #0B192C;
+            background-image: linear-gradient(135deg, rgba(11, 25, 44, 0.95) 0%, rgba(27, 38, 59, 0.92) 100%), 
+                              url('https://crystalpng.com/wp-content/uploads/2023/11/GC-University-Hyderabad-Logo.png');
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: 550px auto;
+            background-attachment: fixed;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.96);
+            backdrop-filter: blur(16px);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center p-4 font-sans text-slate-800">
+    
+    <div class="w-full max-w-md text-center py-6 mb-2 text-white relative z-10">
+        <h2 class="text-xs uppercase tracking-widest font-bold text-amber-400">GCUH IT Department</h2>
+        <h1 class="text-2xl font-black tracking-wide mt-1">Student Portal</h1>
+        <div class="h-1.5 w-16 bg-amber-400 mx-auto mt-2 rounded-full"></div>
+    </div>
+
+    <div class="glass-card p-6 rounded-3xl shadow-2xl w-full max-w-md border border-white/30 relative z-10">
+        
+        <!-- Login Form -->
+        <div id="loginSection" class="space-y-5">
+            <h2 class="text-lg font-bold text-slate-900 border-b pb-2">Student Authentication</h2>
+            <div>
+                <label class="block text-sm font-semibold text-slate-700">Roll Number (Student ID)</label>
+                <input type="text" id="student_id" value="S001" class="mt-1 block w-full p-3.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-600 bg-white font-mono text-lg uppercase">
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-slate-700">Secret PIN</label>
+                <input type="password" id="pin" value="1234" class="mt-1 block w-full p-3.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-600 bg-white text-lg">
+            </div>
+            <button onclick="login()" class="w-full bg-emerald-700 text-white p-4 rounded-xl hover:bg-emerald-800 font-bold shadow-lg transition-all text-lg">Verify Identity</button>
+        </div>
+
+        <!-- Dashboard & Scanner Section -->
+        <div id="dashboardSection" class="hidden space-y-6">
+            <div class="flex justify-between items-center border-b pb-4">
+                <div>
+                    <span id="welcomeText" class="font-bold text-slate-900 text-lg block"></span>
+                    <span class="text-xs font-semibold px-2 py-0.5 bg-blue-100 text-blue-800 rounded">RBAC Authenticated</span>
+                </div>
+                <button onclick="location.reload()" class="text-red-600 hover:text-red-800 text-sm font-bold bg-red-50 px-3 py-1.5 rounded-lg">Logout</button>
+            </div>
+
+            <!-- Geofence Override (For Exhibition Testing) -->
+            <div class="bg-amber-50 p-4 rounded-xl border border-amber-200 space-y-3">
+                <label class="flex items-center space-x-2 cursor-pointer">
+                    <input type="checkbox" id="manualGps" checked class="rounded text-emerald-700 w-4 h-4">
+                    <span class="text-xs font-bold text-amber-900">Lab Geofence GPS Override</span>
+                </label>
+                <div class="grid grid-cols-2 gap-3">
+                    <input type="text" id="manualLat" value="25.39" placeholder="Lat" class="p-2 border border-amber-300 rounded-lg text-sm bg-white font-mono">
+                    <input type="text" id="manualLon" value="68.37" placeholder="Lon" class="p-2 border border-amber-300 rounded-lg text-sm bg-white font-mono">
+                </div>
+            </div>
+
+            <!-- Status Banner -->
+            <div id="statusBanner" class="hidden p-4 rounded-xl text-center font-bold text-sm shadow-inner transition-all"></div>
+
+            <!-- Camera Scanner Interface -->
+            <div class="space-y-2">
+                <h3 class="font-bold text-slate-800 text-sm">Scan Secure QR Code</h3>
+                <div id="reader" class="w-full overflow-hidden rounded-xl border-2 border-slate-300 bg-black"></div>
+                <button id="startScanBtn" onclick="initScanner()" class="w-full bg-blue-600 text-white p-3 rounded-xl font-bold shadow hover:bg-blue-700 transition">📸 Open Camera Scanner</button>
+            </div>
+
+            <div class="flex items-center space-x-2">
+                <hr class="flex-grow border-slate-300">
+                <span class="text-xs font-bold text-slate-400">OR</span>
+                <hr class="flex-grow border-slate-300">
+            </div>
+
+            <!-- Manual Payload Test (For Desktop Testing without Camera) -->
+            <div class="space-y-2">
+                <h3 class="font-bold text-slate-800 text-sm">Desktop Exhibition Testing</h3>
+                <input type="text" id="manualPayload" placeholder="Paste QR Payload (LECTURE_X:Slot:Hash)" class="block w-full p-3 border border-slate-300 rounded-xl text-xs font-mono bg-slate-50">
+                <button onclick="submitManualAttendance()" class="w-full bg-slate-800 text-white p-3 rounded-xl font-bold shadow hover:bg-slate-900 transition">Submit Cryptographic Token</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = "http://127.0.0.1:8000";
+        let authToken = "";
+        let html5QrcodeScanner = null;
+
+        async function login() {
+            const student_id = document.getElementById('student_id').value.toUpperCase();
+            const pin = document.getElementById('pin').value;
+
+            try {
+                const response = await fetch(`${API_BASE}/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ student_id: student_id, pin: pin })
+                });
+
+                if (!response.ok) throw new Error("Verification Failed");
+                const data = await response.json();
+                authToken = data.access_token;
+
+                document.getElementById('loginSection').classList.add('hidden');
+                document.getElementById('dashboardSection').classList.remove('hidden');
+                document.getElementById('welcomeText').innerText = `🎓 ${data.name}`;
+            } catch (err) {
+                alert("Login failed! Invalid Roll Number or PIN.");
+            }
+        }
+
+        function initScanner() {
+            if(html5QrcodeScanner) return; 
+            document.getElementById('startScanBtn').classList.add('hidden');
+            
+            html5QrcodeScanner = new Html5Qrcode("reader");
+            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+            html5QrcodeScanner.start({ facingMode: "environment" }, config, onScanSuccess)
+                .catch(err => alert("Camera access denied or unavailable. Use manual payload input for desktop testing."));
+        }
+
+        async function onScanSuccess(decodedText, decodedResult) {
+            html5QrcodeScanner.stop();
+            document.getElementById('reader').innerHTML = "<p class='text-white p-4 text-center'>Scanning stopped.</p>";
+            await markAttendance(decodedText);
+        }
+
+        async function submitManualAttendance() {
+            const payload = document.getElementById('manualPayload').value;
+            if(!payload) return alert("Please enter a valid QR payload string.");
+            await markAttendance(payload);
+        }
+
+        async function markAttendance(qrPayload) {
+            const statusBanner = document.getElementById('statusBanner');
+            statusBanner.classList.remove('hidden', 'bg-emerald-100', 'text-emerald-800', 'bg-red-100', 'text-red-800');
+            statusBanner.innerHTML = "⏳ Verifying cryptographic signature...";
+            statusBanner.className = "p-4 rounded-xl text-center font-bold text-sm shadow-inner bg-blue-100 text-blue-800 block";
+
+            let lat = 25.39, lon = 68.37;
+            if (document.getElementById('manualGps').checked) {
+                lat = parseFloat(document.getElementById('manualLat').value);
+                lon = parseFloat(document.getElementById('manualLon').value);
+            }
+
+            try {
+                const res = await fetch(`${API_BASE}/attendance/checkin`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({
+                        qr_payload: qrPayload,
+                        latitude: lat,
+                        longitude: lon,
+                        device_id: navigator.userAgent
+                    })
+                });
+
+                if (!res.ok) {
+                    const errData = await res.json();
+                    throw new Error(errData.detail || "Verification failed");
+                }
+
+                const data = await res.json();
+                
+                statusBanner.className = "p-4 rounded-xl text-center font-bold text-sm shadow-inner bg-emerald-100 text-emerald-800 border border-emerald-300 block";
+                statusBanner.innerHTML = `
+                    ✅ Identity Verified & Recorded<br>
+                    <span class="text-xs font-normal">Distance from class: ${data.distance_meters}m</span><br>
+                    <span class="text-xs font-mono font-normal">Ledger: ${data.audit_hash}</span>
+                `;
+                
+                document.getElementById('manualPayload').value = ""; 
+            } catch (err) {
+                statusBanner.className = "p-4 rounded-xl text-center font-bold text-sm shadow-inner bg-red-100 text-red-800 border border-red-300 block";
+                statusBanner.innerHTML = `❌ Access Denied: ${err.message}`;
+            }
+        }
+    </script>
+</body>
+</html>

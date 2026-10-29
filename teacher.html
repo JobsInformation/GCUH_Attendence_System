@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GCUH - Department of Information Technology | Staff Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+    <style>
+        body {
+            background-color: #0B192C;
+            background-image: linear-gradient(135deg, rgba(11, 25, 44, 0.95) 0%, rgba(27, 38, 59, 0.92) 100%), 
+                              url('https://crystalpng.com/wp-content/uploads/2023/11/GC-University-Hyderabad-Logo.png');
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: 550px auto;
+            background-attachment: fixed;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.96);
+            backdrop-filter: blur(16px);
+            position: relative;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-between p-4 font-sans text-slate-800">
+    
+    <div class="w-full max-w-3xl text-center py-4 mb-2 text-white relative z-10">
+        <h2 class="text-xs uppercase tracking-widest font-bold text-amber-400">Government College University Hyderabad</h2>
+        <h1 class="text-2xl font-black tracking-wide mt-1">Department of Information Technology</h1>
+        <div class="h-1.5 w-24 bg-amber-400 mx-auto mt-2 rounded-full"></div>
+    </div>
+
+    <div class="glass-card p-8 rounded-2xl shadow-2xl w-full max-w-3xl border border-white/30">
+        <h2 class="text-xl font-bold mb-6 text-slate-900 flex items-center justify-between border-b pb-4">
+            <span>Enterprise Staff Portal</span>
+            <span class="text-xs px-3 py-1 bg-blue-100 text-blue-900 rounded-full font-semibold">RBAC v3.0</span>
+        </h2>
+        
+        <!-- Login Form -->
+        <div id="loginSection" class="space-y-4">
+            <div>
+                <label class="block text-sm font-semibold text-slate-700">Username</label>
+                <input type="text" id="username" placeholder="prof_smith or hod_it" class="mt-1 block w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 bg-white">
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-slate-700">Password</label>
+                <input type="password" id="password" value="1234" class="mt-1 block w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 bg-white">
+            </div>
+            <button onclick="login()" class="w-full bg-[#0F2C59] text-white p-3 rounded-lg hover:bg-[#1B3C73] font-semibold shadow-md transition-all">Secure Login</button>
+        </div>
+
+        <!-- ================= TEACHER DASHBOARD ================= -->
+        <div id="teacherDashboardSection" class="hidden space-y-6">
+            <div class="flex justify-between items-center border-b pb-4">
+                <div>
+                    <span id="welcomeTextTeacher" class="font-bold text-slate-900 text-lg block"></span>
+                    <span class="text-xs text-slate-500 font-medium">GCUH IT Faculty Member</span>
+                </div>
+                <button onclick="logout()" class="text-red-600 hover:text-red-800 text-sm font-medium px-3 py-1 rounded bg-red-50">Logout</button>
+            </div>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-semibold text-slate-700">Select Degree Program & Course</label>
+                    <select id="courseSelect" class="mt-1 block w-full p-3 border border-slate-300 rounded-lg bg-white font-medium text-slate-800">
+                        <option value="BSIT-701">BSIT-701: Advanced Software Engineering & Architecture</option>
+                        <option value="MSIT-502">MSIT-502: Distributed Edge & 6G Networks</option>
+                    </select>
+                </div>
+
+                <div class="bg-amber-50 p-4 rounded-xl border border-amber-200 space-y-3">
+                    <label class="flex items-center space-x-2 cursor-pointer">
+                        <input type="checkbox" id="manualGps" checked class="rounded text-blue-900 w-4 h-4">
+                        <span class="text-sm font-semibold text-amber-900">Lab/Exhibition GPS Geofence Override</span>
+                    </label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <input type="text" id="manualLat" value="25.39" placeholder="Latitude" class="p-2 border border-amber-300 rounded-lg text-sm bg-white font-mono">
+                        <input type="text" id="manualLon" value="68.37" placeholder="Longitude" class="p-2 border border-amber-300 rounded-lg text-sm bg-white font-mono">
+                    </div>
+                </div>
+
+                <button onclick="startLecture()" class="w-full bg-emerald-600 text-white p-3.5 rounded-xl hover:bg-emerald-700 font-bold shadow-lg transition-all flex items-center justify-center space-x-2">
+                    <span>🚀 Start Lecture & Generate Dynamic QR</span>
+                </button>
+            </div>
+
+            <!-- QR Code & Analytics Section -->
+            <div id="qrContainer" class="hidden space-y-6 pt-6 border-t">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                    <div class="flex flex-col items-center justify-center space-y-3">
+                        <h3 class="font-bold text-slate-800 text-sm">Active Secure Token (Rotation)</h3>
+                        <div class="p-3 bg-white border-2 border-slate-200 rounded-2xl shadow-inner flex flex-col items-center w-full max-w-[220px]">
+                            <canvas id="qrCanvas"></canvas>
+                            <!-- Payload Copier for Desktop Exhibition Testing -->
+                            <div class="mt-3 w-full">
+                                <input type="text" id="rawQrPayload" readonly class="text-[10px] w-full p-1.5 border border-slate-200 rounded bg-slate-50 text-slate-500 font-mono text-center outline-none">
+                                <button onclick="copyPayload()" class="mt-1 w-full text-[11px] text-blue-600 hover:text-blue-800 font-bold tracking-wide">📋 Copy Payload for Test</button>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-2 text-blue-900 bg-blue-50 px-3 py-1 rounded-full border border-blue-100">
+                            <span class="w-2 h-2 rounded-full bg-blue-600 animate-ping"></span>
+                            <span id="timerText" class="text-xs font-bold tracking-wide uppercase">Refreshing in 30s...</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-50 p-5 rounded-xl border border-slate-200 space-y-4">
+                        <h3 class="font-bold text-slate-800 text-sm flex items-center justify-between">
+                            <span>📊 Session & Summary Reports</span>
+                            <span id="attendeeCountBadge" class="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">0 Present</span>
+                        </h3>
+                        <div class="space-y-2 text-xs text-slate-600">
+                            <div class="flex justify-between"><span>Geofence Status:</span> <span class="font-semibold text-emerald-700">Active (500m)</span></div>
+                            <div class="flex justify-between"><span>Security Protocol:</span> <span class="font-semibold text-blue-700">HMAC-SHA256</span></div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 pt-2">
+                            <button onclick="downloadReport('weekly')" class="w-full bg-blue-600 hover:bg-blue-700 text-white p-2.5 rounded-lg font-semibold text-xs transition-all shadow flex items-center justify-center space-x-1">
+                                <span>📥 Weekly Report</span>
+                            </button>
+                            <button onclick="downloadReport('monthly')" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white p-2.5 rounded-lg font-semibold text-xs transition-all shadow flex items-center justify-center space-x-1">
+                                <span>📥 Monthly Report</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Live Attendance Feed -->
+            <div class="border-t pt-6">
+                <h3 class="font-bold text-slate-800 mb-3 flex items-center justify-between">
+                    <span>Live Verification Stream</span>
+                    <span class="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-semibold">Real-time SSE</span>
+                </h3>
+                <div id="attendanceLog" class="bg-slate-900 text-slate-200 h-44 overflow-y-auto p-4 rounded-xl border border-slate-800 text-sm space-y-2 font-mono">
+                    <p class="text-slate-500 italic">Waiting for student check-ins...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= HOD / ADMIN DASHBOARD ================= -->
+        <div id="hodDashboardSection" class="hidden space-y-6">
+            <div class="flex justify-between items-center border-b pb-4">
+                <div>
+                    <span id="welcomeTextHOD" class="font-bold text-slate-900 text-lg block"></span>
+                    <span class="text-xs text-slate-500 font-medium bg-amber-100 text-amber-800 px-2 py-0.5 rounded">Executive Analytics View</span>
+                </div>
+                <button onclick="logout()" class="text-red-600 hover:text-red-800 text-sm font-medium px-3 py-1 rounded bg-red-50">Logout</button>
+            </div>
+
+            <!-- High-Level Metrics -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="bg-blue-50 border border-blue-200 p-4 rounded-xl text-center">
+                    <h3 class="text-xs font-bold text-blue-800 uppercase tracking-wide">Active Lectures</h3>
+                    <p id="statLectures" class="text-3xl font-black text-blue-900 mt-2">0</p>
+                </div>
+                <div class="bg-emerald-50 border border-emerald-200 p-4 rounded-xl text-center">
+                    <h3 class="text-xs font-bold text-emerald-800 uppercase tracking-wide">Total Verifications</h3>
+                    <p id="statAttendances" class="text-3xl font-black text-emerald-900 mt-2">0</p>
+                </div>
+                <div class="bg-purple-50 border border-purple-200 p-4 rounded-xl text-center">
+                    <h3 class="text-xs font-bold text-purple-800 uppercase tracking-wide">Ledger Blocks</h3>
+                    <p id="statBlocks" class="text-3xl font-black text-purple-900 mt-2">0</p>
+                </div>
+            </div>
+
+            <!-- Blockchain Audit Ledger -->
+            <div class="border-t pt-6">
+                <h3 class="font-bold text-slate-800 mb-3 flex items-center justify-between">
+                    <span>Immutable Audit Ledger (Blockchain)</span>
+                    <button onclick="loadHODAnalytics()" class="text-xs bg-slate-200 hover:bg-slate-300 text-slate-800 px-3 py-1 rounded font-semibold transition">Refresh Data</button>
+                </h3>
+                <div id="ledgerLog" class="bg-slate-900 text-slate-200 h-64 overflow-y-auto p-4 rounded-xl border border-slate-800 text-xs space-y-3 font-mono">
+                    <p class="text-slate-500 italic text-center mt-20">No cryptographic blocks generated yet.</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <footer class="mt-6 text-center text-xs text-amber-200/90 font-medium">
+        &copy; 2026 Government College University Hyderabad &bull; Department of IT
+    </footer>
+
+    <script>
+        const API_BASE = "https://your-unique-id.ngrok-free.app";
+        let authToken = "";
+        let userRole = "";
+        let currentLectureId = null;
+        let qrInterval = null;
+        let countdownInterval = null;
+        let timeLeft = 30;
+        let totalCheckedIn = 0;
+
+        async function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                const response = await fetch(`${API_BASE}/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                if (!response.ok) throw new Error("Login failed");
+                const data = await response.json();
+                authToken = data.access_token;
+                userRole = data.role;
+
+                document.getElementById('loginSection').classList.add('hidden');
+                
+                if (userRole === "teacher") {
+                    document.getElementById('teacherDashboardSection').classList.remove('hidden');
+                    document.getElementById('welcomeTextTeacher').innerText = data.name;
+                } else if (userRole === "hod" || userRole === "admin") {
+                    document.getElementById('hodDashboardSection').classList.remove('hidden');
+                    document.getElementById('welcomeTextHOD').innerText = data.name;
+                    loadHODAnalytics();
+                }
+            } catch (err) {
+                alert("Login failed! Check credentials or server connection.");
+            }
+        }
+
+        function logout() {
+            clearInterval(qrInterval);
+            clearInterval(countdownInterval);
+            location.reload();
+        }
+
+        function copyPayload() {
+            const copyText = document.getElementById('rawQrPayload');
+            copyText.select();
+            copyText.setSelectionRange(0, 99999); 
+            navigator.clipboard.writeText(copyText.value);
+            alert("Cryptographic Payload Copied! Paste this in the Student Portal.");
+        }
+
+        async function loadHODAnalytics() {
+            try {
+                const statRes = await fetch(`${API_BASE}/hod/analytics`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                if (statRes.ok) {
+                    const stats = await statRes.json();
+                    document.getElementById('statLectures').innerText = stats.total_active_lectures;
+                    document.getElementById('statAttendances').innerText = stats.total_verified_attendances;
+                    document.getElementById('statBlocks').innerText = stats.ledger_blocks_count;
+                }
+
+                const ledgerRes = await fetch(`${API_BASE}/audit/ledger`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                if (ledgerRes.ok) {
+                    const ledgerData = await ledgerRes.json();
+                    const ledgerLog = document.getElementById('ledgerLog');
+                    
+                    if (ledgerData.immutable_ledger.length === 0) {
+                        ledgerLog.innerHTML = '<p class="text-slate-500 italic text-center mt-20">No cryptographic blocks generated yet.</p>';
+                        return;
+                    }
+
+                    ledgerLog.innerHTML = ''; 
+                    ledgerData.immutable_ledger.slice().reverse().forEach(block => {
+                        const dateStr = new Date(block.timestamp * 1000).toLocaleTimeString();
+                        const entry = document.createElement('div');
+                        entry.className = "p-3 bg-slate-800 border-l-4 border-purple-500 rounded space-y-1 shadow-md";
+                        entry.innerHTML = `
+                            <div class="flex justify-between text-purple-300 font-bold mb-1">
+                                <span>Block #${block.index}</span>
+                                <span>${dateStr}</span>
+                            </div>
+                            <div class="text-slate-300 break-all"><span class="text-slate-500">Student:</span> ${block.student_id} | <span class="text-slate-500">Lecture:</span> ${block.lecture_id}</div>
+                            <div class="text-slate-400 break-all"><span class="text-slate-500">Prev Hash:</span> ${block.previous_hash}</div>
+                            <div class="text-emerald-400 break-all"><span class="text-slate-500">Block Hash:</span> ${block.block_hash}</div>
+                        `;
+                        ledgerLog.appendChild(entry);
+                    });
+                }
+            } catch (e) {
+                console.error("Failed to load HOD analytics", e);
+            }
+        }
+
+        async function startLecture() {
+            const courseCode = document.getElementById('courseSelect').value;
+            let lat = 25.39, lon = 68.37;
+
+            if (document.getElementById('manualGps').checked) {
+                lat = parseFloat(document.getElementById('manualLat').value);
+                lon = parseFloat(document.getElementById('manualLon').value);
+            }
+
+            try {
+                const res = await fetch(`${API_BASE}/lecture/start`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                    body: JSON.stringify({ course_code: courseCode, latitude: lat, longitude: lon })
+                });
+
+                if (!res.ok) throw new Error("Failed to start lecture");
+                const data = await res.json();
+                currentLectureId = data.lecture_id;
+                totalCheckedIn = 0;
+                document.getElementById('attendeeCountBadge').innerText = `0 Present`;
+
+                document.getElementById('qrContainer').classList.remove('hidden');
+                fetchAndRenderQR();
+
+                if (qrInterval) clearInterval(qrInterval);
+                if (countdownInterval) clearInterval(countdownInterval);
+
+                timeLeft = 30;
+                qrInterval = setInterval(() => { fetchAndRenderQR(); timeLeft = 30; }, 30000);
+                countdownInterval = setInterval(() => {
+                    timeLeft--;
+                    if (timeLeft < 0) timeLeft = 30;
+                    document.getElementById('timerText').innerText = `Refreshing in ${timeLeft}s...`;
+                }, 1000);
+
+                connectSSE();
+            } catch (err) {
+                alert("Error starting lecture: " + err.message);
+            }
+        }
+
+        async function fetchAndRenderQR() {
+            if (!currentLectureId) return;
+            try {
+                const res = await fetch(`${API_BASE}/lecture/${currentLectureId}/token`);
+                if (!res.ok) return;
+                const data = await res.json();
+                
+                QRCode.toCanvas(document.getElementById('qrCanvas'), data.qr_payload, { width: 180 }, function (error) {});
+                document.getElementById('rawQrPayload').value = data.qr_payload;
+            } catch (e) { console.error("Error fetching QR token", e); }
+        }
+
+        function connectSSE() {
+            const evtSource = new EventSource(`${API_BASE}/lecture/${currentLectureId}/stream`);
+            const logBox = document.getElementById('attendanceLog');
+            evtSource.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                if (data.student_id) {
+                    if (logBox.querySelector('.italic')) logBox.innerHTML = '';
+                    totalCheckedIn++;
+                    document.getElementById('attendeeCountBadge').innerText = `${totalCheckedIn} Present`;
+
+                    const entry = document.createElement('div');
+                    entry.className = "p-2.5 bg-emerald-950 text-emerald-300 rounded-lg flex justify-between items-center border border-emerald-800";
+                    entry.innerHTML = `<span>🎓 <strong>${data.student_id}</strong> Verified</span><span class="text-xs bg-emerald-900 px-2 py-0.5 rounded text-emerald-200">Hash: ${data.block_hash}</span>`;
+                    logBox.prepend(entry);
+                }
+            };
+        }
+
+        async function downloadReport(reportType) {
+            const courseCode = document.getElementById('courseSelect').value;
+            try {
+                const res = await fetch(`${API_BASE}/reports/export-summary-csv?report_type=${reportType}&course_code=${courseCode}`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                if (!res.ok) throw new Error("Failed to generate report from server");
+                
+                const blob = await res.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `GCUH_${reportType.toUpperCase()}_Attendance_Report.csv`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(url);
+            } catch (err) {
+                alert("Error downloading report: " + err.message);
+            }
+        }
+    </script>
+</body>
+</html>
