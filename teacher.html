@@ -7,6 +7,28 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
     <style>
+        <!-- NGROK BYPASS PATCH: Paste this exactly as-is -->
+<script>
+  (function() {
+      // 1. Automatically inject the bypass header into all fetch() requests
+      const originalFetch = window.fetch;
+      window.fetch = async function(resource, config = {}) {
+          config = config || {};
+          config.headers = config.headers || {};
+          config.headers["ngrok-skip-browser-warning"] = "true";
+          return originalFetch(resource, config);
+      };
+
+      // 2. Automatically force credentials on EventSource (Live Stream)
+      // This ensures the browser sends the Ngrok authorization cookie
+      const OriginalEventSource = window.EventSource;
+      window.EventSource = function(url, config = {}) {
+          config = config || {};
+          config.withCredentials = true;
+          return new OriginalEventSource(url, config);
+      };
+  })();
+</script>
         body {
             background-color: #0B192C;
             background-image: linear-gradient(135deg, rgba(11, 25, 44, 0.95) 0%, rgba(27, 38, 59, 0.92) 100%), 
