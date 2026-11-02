@@ -3,9 +3,11 @@ import time
 import io
 import base64
 import os
+import csv
 import qrcode
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import create_engine, Column, String, DateTime
 from sqlalchemy.ext.declarative import declarative_base
@@ -35,6 +37,7 @@ class AttendanceModel(Base):
     lecture_id = Column(String, index=True)
     timestamp = Column(DateTime, default=datetime.utcnow)
 
+# Automatically create tables in Neon on startup
 Base.metadata.create_all(bind=engine)
 
 # --- FASTAPI APP ---
@@ -144,7 +147,6 @@ def check_in(data: AttendanceCheckIn):
 
     db = SessionLocal()
     try:
-        # Ensure student exists in master table or auto-create for smooth testing
         student = db.query(StudentModel).filter(StudentModel.roll_number == data.student_roll).first()
         if not student:
             new_student = StudentModel(roll_number=data.student_roll, full_name=f"Student {data.student_roll}")
@@ -178,7 +180,6 @@ def check_in(data: AttendanceCheckIn):
         "message": f"Attendance successfully recorded for {data.student_roll} in Neon DB!"
     }
 
-# Teacher Report Endpoint: View all attendees for a lecture
 @app.get("/teacher/reports/{lecture_id}")
 def get_lecture_report(lecture_id: str):
     db = SessionLocal()
@@ -200,6 +201,37 @@ def get_lecture_report(lecture_id: str):
             "total_present": len(report_data),
             "attendance_list": report_data
         }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
+
+@app.get("/teacher/reports/{lecture_id}/csv")
+def export_attendance_csv(lecture_id: str):
+    db = SessionLocal()
+    try:
+        records = db.query(AttendanceModel).filter(AttendanceModel.lecture_id == lecture_id).all()
+        
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(["Roll Number", "Full Name", "Department", "Lecture ID", "Check-In Timestamp"])
+        
+        for rec in records:
+            student = db.query(StudentModel).filter(StudentModel.roll_number == rec.student_roll).first()
+            writer.writerow([
+                rec.student_roll,
+                student.full_name if student else "Unknown Student",
+                student.department if student else "N/A",
+                rec.lecture_id,
+                rec.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+            ])
+            
+        output.seek(0)
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename=attendance_{lecture_id}.csv"}
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
