@@ -1,4 +1,3 @@
-cat << 'EOF' > main.py
 import time
 import io
 import base64
@@ -37,10 +36,8 @@ class AttendanceModel(Base):
     lecture_id = Column(String, index=True)
     timestamp = Column(DateTime, default=datetime.utcnow)
 
-# Automatically create tables in Neon on startup
 Base.metadata.create_all(bind=engine)
 
-# --- FASTAPI APP ---
 app = FastAPI(title="GCUH Attendance System with Neon DB")
 
 app.add_middleware(
@@ -236,4 +233,3 @@ def export_attendance_csv(lecture_id: str):
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         db.close()
-EOF
