@@ -19,6 +19,16 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
+# 1. Student Master Table
+class StudentModel(Base):
+    __tablename__ = "students"
+    
+    roll_number = Column(String, primary_key=True, index=True)
+    full_name = Column(String, nullable=False)
+    department = Column(String, default="Information Technology")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+# 2. Attendance Records Table
 class AttendanceModel(Base):
     __tablename__ = "attendance_records"
     
@@ -27,7 +37,7 @@ class AttendanceModel(Base):
     lecture_id = Column(String, index=True)
     timestamp = Column(DateTime, default=datetime.utcnow)
 
-# Automatically create tables in Neon on startup
+# Automatically create both tables in Neon on startup
 Base.metadata.create_all(bind=engine)
 
 # --- FASTAPI APP ---
@@ -40,6 +50,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+class StudentCreate(BaseModel):
+    roll_number: str
+    full_name: str
+    department: str = "Information Technology"
 
 class AttendanceCheckIn(BaseModel):
     student_roll: str
@@ -58,6 +73,29 @@ def login(data: dict = None):
         "token_type": "bearer",
         "role": "teacher"
     }
+
+# Register a new student
+@app.post("/students/register")
+def register_student(student: StudentCreate):
+    db = SessionLocal()
+    try:
+        existing = db.query(StudentModel).filter(StudentModel.roll_number == student.roll_number).first()
+        if existing:
+            return {"status": "error", "detail": "Student with this Roll Number already registered."}
+        
+        new_student = StudentModel(
+            roll_number=student.roll_number,
+            full_name=student.full_name,
+            department=student.department
+        )
+        db.add(new_student)
+        db.commit()
+        return {"status": "success", "message": f"Student {student.full_name} ({student.roll_number}) registered successfully!"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
 
 @app.post("/lecture/start")
 def start_lecture(data: dict = None):
@@ -101,7 +139,6 @@ def check_in(data: AttendanceCheckIn):
         token_time_window = int(token_time_str)
         current_time_window = int(time.time() // 10)
         
-        # Allow current window or immediate previous window (10s grace period)
         if current_time_window - token_time_window > 1:
             raise HTTPException(status_code=400, detail="QR Code has expired. Please scan the current code.")
     except HTTPException as he:
@@ -109,9 +146,17 @@ def check_in(data: AttendanceCheckIn):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Malformed token: {str(e)}")
 
-    # Save to Neon Database
     db = SessionLocal()
     try:
+        # Optional: Check if student is registered in the master table
+        student = db.query(StudentModel).filter(StudentModel.roll_number == data.student_roll).first()
+        if not student:
+            # Auto-register unlisted students during testing or return error
+            # For now, let's auto-create them so testing is seamless
+            new_student = StudentModel(roll_number=data.student_roll, full_name=f"Student {data.student_roll}")
+            db.add(new_student)
+            db.commit()
+
         existing_record = db.query(AttendanceModel).filter(
             AttendanceModel.student_roll == data.student_roll,
             AttendanceModel.lecture_id == lecture_id
@@ -136,6 +181,6 @@ def check_in(data: AttendanceCheckIn):
 
     return {
         "status": "success", 
-        "message": f"Attendance successfully recorded and saved to Neon DB for {data.student_roll}!"
+        "message": f"Attendance successfully recorded for {data.student_roll} in Neon DB!"
     }
 EOF
