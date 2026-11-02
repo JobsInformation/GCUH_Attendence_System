@@ -19,7 +19,6 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# 1. Student Master Table
 class StudentModel(Base):
     __tablename__ = "students"
     
@@ -28,7 +27,6 @@ class StudentModel(Base):
     department = Column(String, default="Information Technology")
     created_at = Column(DateTime, default=datetime.utcnow)
 
-# 2. Attendance Records Table
 class AttendanceModel(Base):
     __tablename__ = "attendance_records"
     
@@ -37,7 +35,6 @@ class AttendanceModel(Base):
     lecture_id = Column(String, index=True)
     timestamp = Column(DateTime, default=datetime.utcnow)
 
-# Automatically create both tables in Neon on startup
 Base.metadata.create_all(bind=engine)
 
 # --- FASTAPI APP ---
@@ -74,7 +71,6 @@ def login(data: dict = None):
         "role": "teacher"
     }
 
-# Register a new student
 @app.post("/students/register")
 def register_student(student: StudentCreate):
     db = SessionLocal()
@@ -148,11 +144,9 @@ def check_in(data: AttendanceCheckIn):
 
     db = SessionLocal()
     try:
-        # Optional: Check if student is registered in the master table
+        # Ensure student exists in master table or auto-create for smooth testing
         student = db.query(StudentModel).filter(StudentModel.roll_number == data.student_roll).first()
         if not student:
-            # Auto-register unlisted students during testing or return error
-            # For now, let's auto-create them so testing is seamless
             new_student = StudentModel(roll_number=data.student_roll, full_name=f"Student {data.student_roll}")
             db.add(new_student)
             db.commit()
@@ -183,4 +177,31 @@ def check_in(data: AttendanceCheckIn):
         "status": "success", 
         "message": f"Attendance successfully recorded for {data.student_roll} in Neon DB!"
     }
+
+# Teacher Report Endpoint: View all attendees for a lecture
+@app.get("/teacher/reports/{lecture_id}")
+def get_lecture_report(lecture_id: str):
+    db = SessionLocal()
+    try:
+        records = db.query(AttendanceModel).filter(AttendanceModel.lecture_id == lecture_id).all()
+        
+        report_data = []
+        for rec in records:
+            student = db.query(StudentModel).filter(StudentModel.roll_number == rec.student_roll).first()
+            report_data.append({
+                "roll_number": rec.student_roll,
+                "full_name": student.full_name if student else "Unknown Student",
+                "department": student.department if student else "N/A",
+                "timestamp": rec.timestamp.isoformat()
+            })
+            
+        return {
+            "lecture_id": lecture_id,
+            "total_present": len(report_data),
+            "attendance_list": report_data
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
 EOF
