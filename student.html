@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GCUH Student Attendance Check-In</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Include HTML5 QR Code Scanner Library -->
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 </head>
 <body class="bg-gray-50 min-h-screen p-6 flex items-center justify-center">
@@ -21,8 +20,11 @@
 
             <!-- Camera QR Scanner Section -->
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Scan Teacher's Dynamic QR Code</label>
-                <div id="reader" class="w-full rounded-lg overflow-hidden border bg-black"></div>
+                <div class="flex justify-between items-center mb-1">
+                    <label class="block text-sm font-medium text-gray-700">Scan Teacher's QR Code</label>
+                    <button onclick="startScanner()" class="text-xs bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded text-gray-700 font-medium">📷 Open Camera</button>
+                </div>
+                <div id="reader" class="w-full rounded-lg overflow-hidden border bg-black min-h-[50px]"></div>
             </div>
 
             <div>
@@ -40,19 +42,36 @@
 
     <script>
         const BACKEND_URL = "https://chloride-landfill-conceded.ngrok-free.dev";
+        let html5QrCode = null;
 
-        // Initialize QR Scanner on load
-        function onScanSuccess(decodedText, decodedResult) {
-            // Automatically populate token input and submit or alert student
-            document.getElementById('scannedToken').value = decodedText;
-            document.getElementById('statusMessageclassName') || (document.getElementById('statusMessage').className = "mt-6 text-center text-sm font-medium text-blue-600");
-            document.getElementById('statusMessage').innerText = "QR Code scanned successfully! Click Submit.";
+        function startScanner() {
+            const statusDiv = document.getElementById('statusMessage');
+            statusDiv.className = "mt-6 text-center text-sm font-medium text-blue-600";
+            statusDiv.innerText = "Requesting camera access...";
+
+            html5QrCode = new Html5Qrcode("reader");
+            
+            html5QrCode.start(
+                { facingMode: "environment" }, 
+                { fps: 10, qrbox: { width: 250, height: 250 } },
+                (decodedText, decodedResult) => {
+                    // Success callback
+                    document.getElementById('scannedToken').value = decodedText;
+                    statusDiv.className = "mt-6 text-center text-sm font-medium text-green-600";
+                    statusDiv.innerText = "QR Code captured successfully! Click Submit.";
+                    
+                    // Optional: stop scanner after successful scan
+                    html5QrCode.stop().catch(err => console.error("Failed to stop scanner", err));
+                },
+                (errorMessage) => {
+                    // Scanning error (ignored during active search)
+                }
+            ).catch(err => {
+                console.error("Camera permission error:", err);
+                statusDiv.className = "mt-6 text-center text-sm font-medium text-red-500";
+                statusDiv.innerText = "Camera access denied or unavailable. Please check permissions.";
+            });
         }
-
-        const html5QrcodeScanner = new Html5QrcodeScanner(
-            "reader", { fps: 10, qrbox: { width: 250, height: 250 } }, false
-        );
-        html5QrcodeScanner.render(onScanSuccess);
 
         async function submitAttendance() {
             const studentRoll = document.getElementById('studentRoll').value.trim();
