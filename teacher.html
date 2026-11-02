@@ -7,44 +7,77 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-50 min-h-screen p-6">
-    <div class="max-w-4xl mx-auto bg-white rounded-xl shadow-md p-8">
-        <h1 class="text-2xl font-bold text-gray-800 mb-2">Government College University Hyderabad</h1>
-        <p class="text-sm text-gray-500 mb-6">Enterprise Staff Portal (RBAC v3.0)</p>
+    <div class="max-w-4xl mx-auto space-y-6">
+        
+        <!-- Header Card -->
+        <div class="bg-white rounded-xl shadow-md p-8">
+            <h1 class="text-2xl font-bold text-gray-800 mb-2">Government College University Hyderabad</h1>
+            <p class="text-sm text-gray-500 mb-6">Enterprise Staff Portal & Live Attendance Monitor</p>
 
-        <!-- Configuration Inputs -->
-        <div class="grid grid-cols-2 gap-4 mb-6">
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Teacher ID</label>
-                <input type="text" id="teacherId" value="IT-Instructor-01" class="w-full border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-green-500">
+            <!-- Configuration Inputs -->
+            <div class="grid grid-cols-2 gap-4 mb-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Teacher ID</label>
+                    <input type="text" id="teacherId" value="IT-Instructor-01" class="w-full border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-green-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Lecture ID</label>
+                    <input type="text" id="lectureId" value="" placeholder="Auto-generated on start" class="w-full border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-green-500 bg-gray-50" readonly>
+                </div>
             </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Lecture ID</label>
-                <input type="text" id="lectureId" value="" placeholder="Auto-generated on start" class="w-full border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-green-500">
-            </div>
+
+            <!-- Action Button -->
+            <button onclick="startLectureSession()" class="w-full bg-green-600 text-white font-semibold py-3 rounded-lg hover:bg-green-700 transition shadow">
+                🚀 Start Lecture & Generate Dynamic QR
+            </button>
         </div>
 
-        <!-- Action Button -->
-        <button onclick="startLectureSession()" class="w-full bg-green-600 text-white font-semibold py-3 rounded-lg hover:bg-green-700 transition shadow">
-            🚀 Start Lecture & Generate Dynamic QR
-        </button>
-
-        <!-- QR Display Section -->
-        <div class="mt-8 flex flex-col items-center justify-center border-2 border-dashed border-gray-200 rounded-xl p-6">
-            <h3 class="text-lg font-medium text-gray-700 mb-2">Active Secure Token (Rotation)</h3>
+        <!-- Grid Layout: QR Code & Live Attendance Feed -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             
-            <!-- Token Text Display -->
-            <div id="tokenDisplay" class="font-mono text-xs bg-gray-100 px-3 py-1 rounded text-gray-600 mb-4 tracking-wide">Waiting for token...</div>
-            
-            <div id="qrContainer" class="w-64 h-64 bg-gray-100 flex items-center justify-center rounded-lg mb-4">
-                <span class="text-gray-400 text-sm">QR Code will appear here</span>
+            <!-- QR Display Card -->
+            <div class="bg-white rounded-xl shadow-md p-6 flex flex-col items-center justify-center border-2 border-dashed border-gray-200">
+                <h3 class="text-lg font-medium text-gray-700 mb-2">Active Secure Token</h3>
+                <div id="tokenDisplay" class="font-mono text-xs bg-gray-100 px-3 py-1 rounded text-gray-600 mb-4 tracking-wide">Waiting for session...</div>
+                
+                <div id="qrContainer" class="w-56 h-56 bg-gray-100 flex items-center justify-center rounded-lg mb-4">
+                    <span class="text-gray-400 text-sm">QR Code will appear here</span>
+                </div>
+                <div id="timerText" class="text-sm text-gray-500">System Ready</div>
             </div>
-            <div id="timerText" class="text-sm text-gray-500">System Ready</div>
+
+            <!-- Live Attendance Roster Card -->
+            <div class="bg-white rounded-xl shadow-md p-6 flex flex-col">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-medium text-gray-700">Live Attendance Feed</h3>
+                    <span id="attendeeCount" class="bg-green-100 text-green-800 text-xs font-semibold px-2.5 py-0.5 rounded-full">0 Present</span>
+                </div>
+                
+                <div class="border rounded-lg overflow-y-auto max-h-64 flex-1 bg-gray-50">
+                    <table class="w-full text-left border-collapse">
+                        <thead class="bg-gray-100 text-xs text-gray-600 sticky top-0">
+                            <tr>
+                                <th class="p-3">Roll Number</th>
+                                <th class="p-3">Name</th>
+                                <th class="p-3">Time</th>
+                            </tr>
+                        </thead>
+                        <tbody id="attendanceTableBody" class="text-xs text-gray-700 divide-y">
+                            <tr>
+                                <td colspan="3" class="p-4 text-center text-gray-400">No students checked in yet.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
         </div>
     </div>
 
     <script>
         const BACKEND_URL = "https://chloride-landfill-conceded.ngrok-free.dev";
         let rotationInterval = null;
+        let reportInterval = null;
         let currentLectureId = null;
 
         async function startLectureSession() {
@@ -67,6 +100,7 @@
 
                 // 2. Fetch initial QR token immediately
                 fetchAndRenderQR(currentLectureId);
+                fetchAttendanceReport(currentLectureId);
 
                 // 3. Setup 10-second secure token rotation loop
                 if (rotationInterval) clearInterval(rotationInterval);
@@ -80,6 +114,12 @@
                         timeLeft = 10;
                     }
                 }, 1000);
+
+                // 4. Setup live attendance polling loop (every 5 seconds)
+                if (reportInterval) clearInterval(reportInterval);
+                reportInterval = setInterval(() => {
+                    if (currentLectureId) fetchAttendanceReport(currentLectureId);
+                }, 5000);
 
             } catch (err) {
                 console.error("Lecture Start Error:", err);
@@ -95,12 +135,39 @@
                 if (!res.ok) throw new Error("Token fetch failed");
                 const data = await res.json();
 
-                // Update both the QR image and the text token display
                 document.getElementById('qrContainer').innerHTML = `<img src="${data.qr_image}" alt="Dynamic QR" class="w-full h-full object-contain">`;
                 document.getElementById('tokenDisplay').innerText = `Token: ${data.token}`;
             } catch (err) {
                 console.error("QR Fetch Error:", err);
                 document.getElementById('qrContainer').innerHTML = `<span class="text-red-500 text-xs">Connection Error</span>`;
+            }
+        }
+
+        async function fetchAttendanceReport(lectureId) {
+            try {
+                const res = await fetch(`${BACKEND_URL}/teacher/reports/${lectureId}`, {
+                    headers: { "ngrok-skip-browser-warning": "true" }
+                });
+                if (!res.ok) return;
+                const data = await res.json();
+
+                document.getElementById('attendeeCount').innerText = `${data.total_present} Present`;
+                
+                const tbody = document.getElementById('attendanceTableBody');
+                if (data.attendance_list.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="3" class="p-4 text-center text-gray-400">No students checked in yet.</td></tr>`;
+                    return;
+                }
+
+                tbody.innerHTML = data.attendance_list.map(item => `
+                    <tr class="hover:bg-gray-50">
+                        <td class="p-3 font-medium">${item.roll_number}</td>
+                        <td class="p-3">${item.full_name}</td>
+                        <td class="p-3 text-gray-500">${new Date(item.timestamp).toLocaleTimeString()}</td>
+                    </tr>
+                `).join('');
+            } catch (err) {
+                console.error("Report Poll Error:", err);
             }
         }
     </script>
