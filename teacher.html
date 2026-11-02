@@ -49,8 +49,13 @@
             <!-- Live Attendance Roster Card -->
             <div class="bg-white rounded-xl shadow-md p-6 flex flex-col">
                 <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-lg font-medium text-gray-700">Live Attendance Feed</h3>
-                    <span id="attendeeCount" class="bg-green-100 text-green-800 text-xs font-semibold px-2.5 py-0.5 rounded-full">0 Present</span>
+                    <div class="flex items-center space-x-2">
+                        <h3 class="text-lg font-medium text-gray-700">Live Attendance Feed</h3>
+                        <span id="attendeeCount" class="bg-green-100 text-green-800 text-xs font-semibold px-2.5 py-0.5 rounded-full">0 Present</span>
+                    </div>
+                    <button onclick="downloadAttendanceCSV()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition shadow">
+                        📥 Export CSV
+                    </button>
                 </div>
                 
                 <div class="border rounded-lg overflow-y-auto max-h-64 flex-1 bg-gray-50">
@@ -67,109 +72,3 @@
                                 <td colspan="3" class="p-4 text-center text-gray-400">No students checked in yet.</td>
                             </tr>
                         </tbody>
-                    </table>
-                </div>
-            </div>
-
-        </div>
-    </div>
-
-    <script>
-        const BACKEND_URL = "https://chloride-landfill-conceded.ngrok-free.dev";
-        let rotationInterval = null;
-        let reportInterval = null;
-        let currentLectureId = null;
-
-        async function startLectureSession() {
-            try {
-                // 1. Initialize lecture on backend
-                const startRes = await fetch(`${BACKEND_URL}/lecture/start`, {
-                    method: "POST",
-                    headers: { 
-                        "Content-Type": "application/json", 
-                        "ngrok-skip-browser-warning": "true" 
-                    },
-                    body: JSON.stringify({ teacherId: document.getElementById('teacherId').value })
-                });
-
-                if (!startRes.ok) throw new Error("Failed to start lecture");
-                const startData = await startRes.json();
-                
-                currentLectureId = startData.lecture_id;
-                document.getElementById('lectureId').value = currentLectureId;
-
-                // 2. Fetch initial QR token immediately
-                fetchAndRenderQR(currentLectureId);
-                fetchAttendanceReport(currentLectureId);
-
-                // 3. Setup 10-second secure token rotation loop
-                if (rotationInterval) clearInterval(rotationInterval);
-                let timeLeft = 10;
-                
-                rotationInterval = setInterval(() => {
-                    timeLeft--;
-                    document.getElementById('timerText').innerText = `Refreshing in ${timeLeft}s...`;
-                    if (timeLeft <= 0) {
-                        fetchAndRenderQR(currentLectureId);
-                        timeLeft = 10;
-                    }
-                }, 1000);
-
-                // 4. Setup live attendance polling loop (every 5 seconds)
-                if (reportInterval) clearInterval(reportInterval);
-                reportInterval = setInterval(() => {
-                    if (currentLectureId) fetchAttendanceReport(currentLectureId);
-                }, 5000);
-
-            } catch (err) {
-                console.error("Lecture Start Error:", err);
-                alert("Error starting lecture: Check backend connection");
-            }
-        }
-
-        async function fetchAndRenderQR(lectureId) {
-            try {
-                const res = await fetch(`${BACKEND_URL}/lecture/${lectureId}/token`, {
-                    headers: { "ngrok-skip-browser-warning": "true" }
-                });
-                if (!res.ok) throw new Error("Token fetch failed");
-                const data = await res.json();
-
-                document.getElementById('qrContainer').innerHTML = `<img src="${data.qr_image}" alt="Dynamic QR" class="w-full h-full object-contain">`;
-                document.getElementById('tokenDisplay').innerText = `Token: ${data.token}`;
-            } catch (err) {
-                console.error("QR Fetch Error:", err);
-                document.getElementById('qrContainer').innerHTML = `<span class="text-red-500 text-xs">Connection Error</span>`;
-            }
-        }
-
-        async function fetchAttendanceReport(lectureId) {
-            try {
-                const res = await fetch(`${BACKEND_URL}/teacher/reports/${lectureId}`, {
-                    headers: { "ngrok-skip-browser-warning": "true" }
-                });
-                if (!res.ok) return;
-                const data = await res.json();
-
-                document.getElementById('attendeeCount').innerText = `${data.total_present} Present`;
-                
-                const tbody = document.getElementById('attendanceTableBody');
-                if (data.attendance_list.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="3" class="p-4 text-center text-gray-400">No students checked in yet.</td></tr>`;
-                    return;
-                }
-
-                tbody.innerHTML = data.attendance_list.map(item => `
-                    <tr class="hover:bg-gray-50">
-                        <td class="p-3 font-medium">${item.roll_number}</td>
-                        <td class="p-3">${item.full_name}</td>
-                        <td class="p-3 text-gray-500">${new Date(item.timestamp).toLocaleTimeString()}</td>
-                    </tr>
-                `).join('');
-            } catch (err) {
-                console.error("Report Poll Error:", err);
-            }
-        }
-    </script>
-</body>
-</html>
