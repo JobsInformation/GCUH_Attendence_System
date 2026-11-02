@@ -1,28 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- NGROK BYPASS PATCH: Paste this exactly as-is -->
-<script>
-  (function() {
-      // 1. Automatically inject the bypass header into all fetch() requests
-      const originalFetch = window.fetch;
-      window.fetch = async function(resource, config = {}) {
-          config = config || {};
-          config.headers = config.headers || {};
-          config.headers["ngrok-skip-browser-warning"] = "true";
-          return originalFetch(resource, config);
-      };
-
-      // 2. Automatically force credentials on EventSource (Live Stream)
-      // This ensures the browser sends the Ngrok authorization cookie
-      const OriginalEventSource = window.EventSource;
-      window.EventSource = function(url, config = {}) {
-          config = config || {};
-          config.withCredentials = true;
-          return new OriginalEventSource(url, config);
-      };
-  })();
-</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GCUH Teacher Dashboard - Dynamic QR Attendance</title>
@@ -94,3 +72,113 @@
                                 <td colspan="3" class="p-4 text-center text-gray-400">No students checked in yet.</td>
                             </tr>
                         </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        const BACKEND_URL = "https://chloride-landfill-conceded.ngrok-free.dev";
+        let rotationInterval = null;
+        let reportInterval = null;
+        let currentLectureId = null;
+
+        async function startLectureSession() {
+            try {
+                const startRes = await fetch(`${BACKEND_URL}/lecture/start`, {
+                    method: "POST",
+                    headers: { 
+                        "Content-Type": "application/json", 
+                        "ngrok-skip-browser-warning": "true" 
+                    },
+                    body: JSON.stringify({ teacherId: document.getElementById('teacherId').value })
+                });
+
+                if (!startRes.ok) throw new Error("Failed to start lecture");
+                const startData = await startRes.json();
+                
+                currentLectureId = startData.lecture_id;
+                document.getElementById('lectureId').value = currentLectureId;
+
+                fetchAndRenderQR(currentLectureId);
+                fetchAttendanceReport(currentLectureId);
+
+                if (rotationInterval) clearInterval(rotationInterval);
+                let timeLeft = 10;
+                
+                rotationInterval = setInterval(() => {
+                    timeLeft--;
+                    document.getElementById('timerText').innerText = `Refreshing in ${timeLeft}s...`;
+                    if (timeLeft <= 0) {
+                        fetchAndRenderQR(currentLectureId);
+                        timeLeft = 10;
+                    }
+                }, 1000);
+
+                if (reportInterval) clearInterval(reportInterval);
+                reportInterval = setInterval(() => {
+                    if (currentLectureId) fetchAttendanceReport(currentLectureId);
+                }, 5000);
+
+            } catch (err) {
+                console.error("Lecture Start Error:", err);
+                alert("Error starting lecture: Check backend connection");
+            }
+        }
+
+        async function fetchAndRenderQR(lectureId) {
+            try {
+                const res = await fetch(`${BACKEND_URL}/lecture/${lectureId}/token`, {
+                    headers: { "ngrok-skip-browser-warning": "true" }
+                });
+                if (!res.ok) throw new Error("Token fetch failed");
+                const data = await res.json();
+
+                document.getElementById('qrContainer').innerHTML = `<img src="${data.qr_image}" alt="Dynamic QR" class="w-full h-full object-contain">`;
+                document.getElementById('tokenDisplay').innerText = `Token: ${data.token}`;
+            } catch (err) {
+                console.error("QR Fetch Error:", err);
+                document.getElementById('qrContainer').innerHTML = `<span class="text-red-500 text-xs">Connection Error</span>`;
+            }
+        }
+
+        async function fetchAttendanceReport(lectureId) {
+            try {
+                const res = await fetch(`${BACKEND_URL}/teacher/reports/${lectureId}`, {
+                    headers: { "ngrok-skip-browser-warning": "true" }
+                });
+                if (!res.ok) return;
+                const data = await res.json();
+
+                document.getElementById('attendeeCount').innerText = `${data.total_present} Present`;
+                
+                const tbody = document.getElementById('attendanceTableBody');
+                if (data.attendance_list.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="3" class="p-4 text-center text-gray-400">No students checked in yet.</td></tr>`;
+                    return;
+                }
+
+                tbody.innerHTML = data.attendance_list.map(item => `
+                    <tr class="hover:bg-gray-50">
+                        <td class="p-3 font-medium">${item.roll_number}</td>
+                        <td class="p-3">${item.full_name}</td>
+                        <td class="p-3 text-gray-500">${new Date(item.timestamp).toLocaleTimeString()}</td>
+                    </tr>
+                `).join('');
+            } catch (err) {
+                console.error("Report Poll Error:", err);
+            }
+        }
+
+        function downloadAttendanceCSV() {
+            if (!currentLectureId) {
+                alert("No active lecture session found.");
+                return;
+            }
+            window.location.href = `${BACKEND_URL}/teacher/reports/${currentLectureId}/csv`;
+        }
+    </script>
+</body>
+</html>
