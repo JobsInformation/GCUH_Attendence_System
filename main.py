@@ -10,7 +10,6 @@ from pydantic import BaseModel
 
 app = FastAPI(title="GCUH Attendance System")
 
-# Enable full CORS access for Vercel & local debugging
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -48,7 +47,6 @@ def start_lecture(data: dict = None):
 
 @app.get("/lecture/{lecture_id}/token")
 def get_lecture_token(lecture_id: str):
-    # Rotate token every 10 seconds securely
     token_val = f"GCUH-{lecture_id}-{int(time.time() // 10)}"
     
     qr = qrcode.QRCode(version=1, box_size=10, border=4)
@@ -67,27 +65,20 @@ def get_lecture_token(lecture_id: str):
         "qr_image": f"data:image/png;base64,{img_base64}"
     }
 
-@app.get("/lecture/{lecture_id}/stream")
-async def lecture_stream(lecture_id: str):
-    async def event_generator():
-        yield f"data: Connected to live verification stream for {lecture_id}\n\n"
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
-
 @app.post("/attendance/check-in")
 def check_in(data: AttendanceCheckIn):
     if not data.token.startswith("GCUH-"):
-        return {"status": "error", "detail": "Invalid attendance token format"}, 400
+        return {"status": "error", "detail": "Invalid attendance token format"}
     
     try:
-        parts = data.token.split("-")
-        token_time_window = int(parts[-1])
+        *_, token_time_str = data.token.rsplit("-", 1)
+        token_time_window = int(token_time_str)
         current_time_window = int(time.time() // 10)
         
-        # Allow current window or immediate previous window (10s grace period)
         if current_time_window - token_time_window > 1:
-            return {"status": "error", "detail": "QR Code has expired. Please scan the current code."}, 400
-    except Exception:
-        return {"status": "error", "detail": "Malformed token"}, 400
+            return {"status": "error", "detail": "QR Code has expired. Please scan the current code."}
+    except Exception as e:
+        return {"status": "error", "detail": f"Malformed token: {str(e)}"}
 
     return {
         "status": "success", 
