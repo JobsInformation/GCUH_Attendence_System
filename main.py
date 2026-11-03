@@ -33,7 +33,13 @@ class Lecture(Base):
     token = Column(String)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
-Base.metadata.create_all(bind=engine)
+try:
+    try:
+    Base.metadata.create_all(bind=engine)
+except Exception as e:
+    print(f"DB Init Error: {e}")
+except Exception as e:
+    print(f"DB Init Error: {e}")
 
 app = FastAPI(title="GCUH Attendance Backend", version="1.0")
 
