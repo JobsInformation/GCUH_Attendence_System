@@ -5,3 +5,5 @@ sqlalchemy
 passlib
 bcrypt
 pydantic
+qrcode
+pillow
