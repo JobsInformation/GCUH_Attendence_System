@@ -99,3 +99,4 @@ def get_report(lecture_id: int):
 @app.get("/teacher/reports/{lecture_id}/csv")
 def get_report_csv(lecture_id: int):
     return {"status": "csv generated"}
+
