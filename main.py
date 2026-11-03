@@ -1,3 +1,4 @@
+import bcrypt
 import os
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -76,10 +77,45 @@ def register_teacher(user: UserCreate, db: Session = Depends(get_db)):
     return {"status": "success", "message": f"{user.role.capitalize()} registered successfully"}
 
 @app.post("/login")
-def login(form_data: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.username == form_data.username).first()
-    if not user or not pwd_context.verify(form_data.password, user.hashed_password):
+async def login(request: Request, db: Session = Depends(get_db)):
+    content_type = request.headers.get("content-type", "")
+    username = None
+    password = None
+    
+    if "application/json" in content_type:
+        try:
+            data = await request.json()
+            username = data.get("username")
+            password = data.get("password")
+        except Exception:
+            pass
+    if not username or not password:
+        form = await request.form()
+        username = form.get("username")
+        password = form.get("password")
+        
+    user = db.query(User).filter(User.username == username).first()
+    if not user:
         raise HTTPException(status_code=400, detail="Incorrect username or password")
+        
+    # Verify using passlib or direct bcrypt fallback
+    verified = False
+    try:
+        if pwd_context.verify(password, user.hashed_password):
+            verified = True
+    except Exception:
+        pass
+        
+    if not verified:
+        try:
+            if bcrypt.checkpw(password.encode('utf-8'), user.hashed_password.encode('utf-8')):
+                verified = True
+        except Exception:
+            pass
+            
+    if not verified:
+        raise HTTPException(status_code=400, detail="Incorrect username or password")
+        
     return {"access_token": user.username, "token_type": "bearer", "role": user.role}
 
 @app.post("/students/register")
