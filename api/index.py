@@ -100,3 +100,4 @@ def get_report(lecture_id: int):
 def get_report_csv(lecture_id: int):
     return {"status": "csv generated"}
 
+
