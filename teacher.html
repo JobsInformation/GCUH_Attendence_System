@@ -114,7 +114,7 @@
                 formData.append('username', username);
                 formData.append('password', password);
 
-                const res = await fetch(`${BACKEND_URL}/token`, {
+                const res = await fetch(`${BACKEND_URL}/login`, {
                     method: "POST",
                     headers: { "Content-Type": "application/x-www-form-urlencoded" },
                     body: formData
@@ -190,7 +190,7 @@
 
         async function fetchAndRenderQR(lectureId) {
             try {
-                const res = await fetch(`${BACKEND_URL}/lecture/${lectureId}/token`, {
+                const res = await fetch(`${BACKEND_URL}/lecture/${lectureId}/login`, {
                     headers: { "Authorization": `Bearer ${authToken}` }
                 });
                 if (!res.ok) throw new Error("Token fetch failed");
