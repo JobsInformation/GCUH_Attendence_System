@@ -3,32 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GCUH Teacher Dashboard - Dynamic QR Attendance</title>
+    <title>GCUH Teacher Portal - Secure Attendance</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-50 min-h-screen p-6">
     <div class="max-w-4xl mx-auto space-y-6">
         
-        <!-- Header Card -->
+        <!-- Header & Auth Card -->
         <div class="bg-white rounded-xl shadow-md p-8">
             <h1 class="text-2xl font-bold text-gray-800 mb-2">Government College University Hyderabad</h1>
-            <p class="text-sm text-gray-500 mb-6">Enterprise Staff Portal & Live Attendance Monitor</p>
+            <p class="text-sm text-gray-500 mb-6">Secure Teacher Portal & Live Attendance Monitor</p>
 
-            <!-- Configuration Inputs -->
+            <!-- Login Section -->
+            <div id="loginSection" class="bg-gray-50 p-4 rounded-lg border mb-6">
+                <h3 class="text-sm font-semibold text-gray-700 mb-3">🔒 Teacher Authentication</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <input type="text" id="username" placeholder="Username (e.g. admin)" class="border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-500">
+                    <input type="password" id="password" placeholder="Password" class="border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-500">
+                    <button onclick="loginTeacher()" class="bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm py-2 rounded-lg transition shadow">
+                        🔑 Login & Authenticate
+                    </button>
+                </div>
+                <div id="authStatus" class="text-xs mt-2 text-gray-500">Status: Not logged in</div>
+            </div>
+
+            <!-- Configuration Inputs (Disabled until logged in) -->
             <div class="grid grid-cols-2 gap-4 mb-6">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Teacher ID</label>
-                    <input type="text" id="teacherId" value="IT-Instructor-01" class="w-full border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-green-500">
+                    <input type="text" id="teacherId" value="IT-Instructor-01" class="w-full border rounded-lg px-3 py-2 outline-none bg-gray-50" readonly>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Lecture ID</label>
-                    <input type="text" id="lectureId" value="" placeholder="Auto-generated on start" class="w-full border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-green-500 bg-gray-50" readonly>
+                    <input type="text" id="lectureId" value="" placeholder="Auto-generated on start" class="w-full border rounded-lg px-3 py-2 outline-none bg-gray-50" readonly>
                 </div>
             </div>
 
             <!-- Action Button -->
-            <button onclick="startLectureSession()" class="w-full bg-green-600 text-white font-semibold py-3 rounded-lg hover:bg-green-700 transition shadow">
-                🚀 Start Lecture & Generate Dynamic QR
+            <button id="startBtn" onclick="startLectureSession()" class="w-full bg-gray-300 text-gray-500 font-semibold py-3 rounded-lg cursor-not-allowed transition shadow" disabled>
+                🚀 Start Lecture & Generate Dynamic QR (Login Required)
             </button>
         </div>
 
@@ -80,20 +93,67 @@
     </div>
 
     <script>
-        const BACKEND_URL = "";
+        const BACKEND_URL = ""; // Empty string for same-domain Vercel serverless deployment
+        let authToken = null;
         let rotationInterval = null;
         let reportInterval = null;
         let currentLectureId = null;
 
+        async function loginTeacher() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const statusDiv = document.getElementById('authStatus');
+
+            if (!username || !password) {
+                alert("Please enter both username and password.");
+                return;
+            }
+
+            try {
+                const formData = new URLSearchParams();
+                formData.append('username', username);
+                formData.append('password', password);
+
+                const res = await fetch(`${BACKEND_URL}/token`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: formData
+                });
+
+                if (!res.ok) throw new Error("Invalid username or password");
+                const data = await res.json();
+                
+                authToken = data.access_token;
+                statusDiv.innerText = `Status: Logged in successfully as ${username} ✅`;
+                statusDiv.className = "text-xs mt-2 text-green-600 font-semibold";
+
+                // Enable start button
+                const btn = document.getElementById('startBtn');
+                btn.disabled = false;
+                btn.className = "w-full bg-green-600 text-white font-semibold py-3 rounded-lg hover:bg-green-700 transition shadow cursor-pointer";
+                btn.innerText = "🚀 Start Lecture & Generate Dynamic QR";
+
+            } catch (err) {
+                console.error("Login Error:", err);
+                statusDiv.innerText = `Status: Login failed (${err.message}) ❌`;
+                statusDiv.className = "text-xs mt-2 text-red-600 font-semibold";
+            }
+        }
+
         async function startLectureSession() {
+            if (!authToken) {
+                alert("Please log in first.");
+                return;
+            }
+
             try {
                 const startRes = await fetch(`${BACKEND_URL}/lecture/start`, {
                     method: "POST",
                     headers: { 
-                        "Content-Type": "application/json", 
-                        "ngrok-skip-browser-warning": "true" 
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${authToken}`
                     },
-                    body: JSON.stringify({ teacherId: document.getElementById('teacherId').value })
+                    body: JSON.stringify({})
                 });
 
                 if (!startRes.ok) throw new Error("Failed to start lecture");
@@ -124,14 +184,14 @@
 
             } catch (err) {
                 console.error("Lecture Start Error:", err);
-                alert("Error starting lecture: Check backend connection");
+                alert("Error starting lecture: Unauthorized or connection error");
             }
         }
 
         async function fetchAndRenderQR(lectureId) {
             try {
                 const res = await fetch(`${BACKEND_URL}/lecture/${lectureId}/token`, {
-                    headers: { "ngrok-skip-browser-warning": "true" }
+                    headers: { "Authorization": `Bearer ${authToken}` }
                 });
                 if (!res.ok) throw new Error("Token fetch failed");
                 const data = await res.json();
@@ -147,7 +207,7 @@
         async function fetchAttendanceReport(lectureId) {
             try {
                 const res = await fetch(`${BACKEND_URL}/teacher/reports/${lectureId}`, {
-                    headers: { "ngrok-skip-browser-warning": "true" }
+                    headers: { "Authorization": `Bearer ${authToken}` }
                 });
                 if (!res.ok) return;
                 const data = await res.json();
