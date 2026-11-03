@@ -190,7 +190,7 @@
 
         async function fetchAndRenderQR(lectureId) {
             try {
-                const res = await fetch(`${BACKEND_URL}/lecture/${lectureId}/login`, {
+                const res = await fetch(`${BACKEND_URL}/lecture/start`, {
                     headers: { "Authorization": `Bearer ${authToken}` }
                 });
                 if (!res.ok) throw new Error("Token fetch failed");
