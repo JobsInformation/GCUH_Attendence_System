@@ -7,8 +7,9 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from passlib.context import CryptContext
 import datetime
+import qrcode
+import io
 
-# Database Configuration for Neon PostgreSQL with psycopg2 driver
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+psycopg2://neondb_owner:npg_n1QztYNasx5I@ep-crimson-bread-b5d68uh1-pooler.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require")
 
 engine = create_engine(DATABASE_URL)
@@ -18,13 +19,12 @@ Base = declarative_base()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
-# Models
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True)
     hashed_password = Column(String)
-    role = Column(String) # teacher, student
+    role = Column(String)
 
 class Lecture(Base):
     __tablename__ = "lectures"
@@ -99,5 +99,3 @@ def get_report(lecture_id: int):
 @app.get("/teacher/reports/{lecture_id}/csv")
 def get_report_csv(lecture_id: int):
     return {"status": "csv generated"}
-
-
