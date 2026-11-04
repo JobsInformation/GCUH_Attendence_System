@@ -141,3 +141,33 @@ def get_report(lecture_id: int):
 @app.get(\"/teacher/reports/{lecture_id}/csv")
 def get_report_csv(lecture_id: int):
     return {"status": "csv generated"}
+
+
+@app.post("/login")
+async def login(request: Request, db: Session = Depends(get_db)):
+    username = None
+    password = None
+    
+    content_type = request.headers.get("content-type", "")
+    if "application/json" in content_type:
+        try:
+            data = await request.json()
+            username = data.get("username")
+            password = data.get("password")
+        except Exception:
+            pass
+            
+    if not username or not password:
+        form = await request.form()
+        username = form.get("username")
+        password = form.get("password")
+
+    if not username or not password:
+        raise HTTPException(status_code=400, detail="Missing username or password")
+
+    user = db.execute(text("SELECT id, username, hashed_password FROM users WHERE username = :uname"), {"uname": username}).fetchone()
+    
+    if not user or not bcrypt.checkpw(password.encode("utf-8"), user.hashed_password.encode("utf-8")):
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+
+    return {"access_token": user.username, "token_type": "bearer"}

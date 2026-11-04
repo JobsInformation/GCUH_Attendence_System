@@ -1,10 +1,8 @@
-bcrypt
 fastapi
-passlib
-pillow
+uvicorn
 psycopg2-binary
-pydantic
+sqlalchemy
+bcrypt
 python-multipart
 qrcode
-sqlalchemy
-uvicorn
+pydantic
