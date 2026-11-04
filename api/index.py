@@ -143,6 +143,7 @@ def get_report_csv(lecture_id: int):
     return {"status": "csv generated"}
 
 
+@app.post("/login")
 @app.post("/api/login")
 async def login(request: Request, db: Session = Depends(get_db)):
     username = None
