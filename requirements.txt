@@ -1,9 +1,10 @@
-fastapi
-uvicorn
-psycopg2-binary
-sqlalchemy
-passlib
 bcrypt
-pydantic
-qrcode
+fastapi
+passlib
 pillow
+psycopg2-binary
+pydantic
+python-multipart
+qrcode
+sqlalchemy
+uvicorn
