@@ -1,5 +1,10 @@
 {
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/index.py" }
+    { "source": "/login", "destination": "/api/index.py" },
+    { "source": "/auth/(.*)", "destination": "/api/index.py" },
+    { "source": "/students/(.*)", "destination": "/api/index.py" },
+    { "source": "/lecture/(.*)", "destination": "/api/index.py" },
+    { "source": "/attendance/(.*)", "destination": "/api/index.py" },
+    { "source": "/teacher/reports/(.*)", "destination": "/api/index.py" }
   ]
 }

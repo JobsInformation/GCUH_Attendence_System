@@ -114,7 +114,7 @@
                 formData.append('username', username);
                 formData.append('password', password);
 
-                const res = await fetch(`/api/login`, {
+                const res = await fetch(`/login`, {
                     method: "POST",
                     headers: { "Content-Type": "application/x-www-form-urlencoded" },
                     body: formData
@@ -147,7 +147,7 @@
             }
 
             try {
-                const startRes = await fetch(`/api/lecture/start`, {
+                const startRes = await fetch(`/lecture/start`, {
                     method: "POST",
                     headers: { 
                         "Content-Type": "application/json",
@@ -190,7 +190,7 @@
 
         async function fetchAndRenderQR(lectureId) {
             try {
-                const res = await fetch(`/api/lecture/start`, {
+                const res = await fetch(`/lecture/start`, {
                     headers: { "Authorization": `Bearer ${authToken}` }
                 });
                 if (!res.ok) throw new Error("Token fetch failed");
@@ -206,7 +206,7 @@
 
         async function fetchAttendanceReport(lectureId) {
             try {
-                const res = await fetch(`/api/teacher/reports/${lectureId}`, {
+                const res = await fetch(`/teacher/reports/${lectureId}`, {
                     headers: { "Authorization": `Bearer ${authToken}` }
                 });
                 if (!res.ok) return;

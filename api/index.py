@@ -60,11 +60,11 @@ class LoginRequest(BaseModel):
     username: str
     password: str
 
-@app.get("/api/")
+@app.get(\"/")
 def read_root():
     return {"status": "online", "system": "GCUH Attendance Backend with Neon DB"}
 
-@app.post("/api/auth/register")
+@app.post(\"/auth/register")
 def register_teacher(user: UserCreate, db: Session = Depends(get_db)):
     existing_user = db.query(User).filter(User.username == user.username).first()
     if existing_user:
@@ -76,7 +76,7 @@ def register_teacher(user: UserCreate, db: Session = Depends(get_db)):
     db.refresh(db_user)
     return {"status": "success", "message": f"{user.role.capitalize()} registered successfully"}
 
-@app.post("/api/login")
+@app.post(\"/login")
 async def login(request: Request, db: Session = Depends(get_db)):
     content_type = request.headers.get("content-type", "")
     username = None
@@ -118,26 +118,26 @@ async def login(request: Request, db: Session = Depends(get_db)):
         
     return {"access_token": user.username, "token_type": "bearer", "role": user.role}
 
-@app.post("/api/students/register")
+@app.post(\"/students/register")
 def register_student():
     return {"status": "success", "message": "Student registration endpoint active"}
 
-@app.post("/api/lecture/start")
+@app.post(\"/lecture/start")
 def start_lecture():
     return {"status": "success", "lecture_id": 1, "token": "sample-qr-token"}
 
-@app.get("/api/lecture/{lecture_id}/token")
+@app.get(\"/lecture/{lecture_id}/token")
 def get_lecture_token(lecture_id: int):
     return {"lecture_id": lecture_id, "token": "sample-qr-token"}
 
-@app.post("/api/attendance/check-in")
+@app.post(\"/attendance/check-in")
 def check_in():
     return {"status": "success", "message": "Attendance recorded"}
 
-@app.get("/api/teacher/reports/{lecture_id}")
+@app.get(\"/teacher/reports/{lecture_id}")
 def get_report(lecture_id: int):
     return {"lecture_id": lecture_id, "attendance": []}
 
-@app.get("/api/teacher/reports/{lecture_id}/csv")
+@app.get(\"/teacher/reports/{lecture_id}/csv")
 def get_report_csv(lecture_id: int):
     return {"status": "csv generated"}
