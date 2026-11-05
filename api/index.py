@@ -1,6 +1,6 @@
 import os
 import traceback
-from fastapi import FastAPI, Request, Depends, HTTPException
+from fastapi import FastAPI, Request, Depends, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import create_engine, text
@@ -35,7 +35,6 @@ def get_db():
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     tb = traceback.format_exc()
-    # Always return JSON even for unexpected 500 errors to prevent JSON parse crashes on frontend
     return JSONResponse(
         status_code=500,
         content={"detail": str(exc), "traceback": tb.split("\n")}
@@ -59,8 +58,32 @@ def login_get_info():
 @app.post("/login")
 @app.post("/api/login")
 async def login_post(request: Request, db: Session = Depends(get_db)):
+    username = None
+    password = None
+
+    # 1. Try parsing JSON body
     try:
-        # Lazily ensure users table exists and seed admin user on first login request
+        body = await request.json()
+        if isinstance(body, dict):
+            username = body.get("username")
+            password = body.get("password")
+    except Exception:
+        pass
+
+    # 2. Fallback to Form Data if JSON failed or was empty
+    if not username or not password:
+        try:
+            form = await request.form()
+            username = form.get("username")
+            password = form.get("password")
+        except Exception:
+            pass
+
+    if not username or not password:
+        return JSONResponse(status_code=400, content={"detail": "Missing username or password in payload"})
+
+    try:
+        # Lazily ensure users table exists and seed admin user
         with engine.begin() as conn:
             conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS users (
@@ -77,27 +100,14 @@ async def login_post(request: Request, db: Session = Depends(get_db)):
                     {"uname": "admin", "pwd": hashed}
                 )
 
-        try:
-            data = await request.json()
-        except Exception:
-            raise HTTPException(status_code=400, detail="Invalid JSON payload")
-
-        username = data.get("username")
-        password = data.get("password")
-
-        if not username or not password:
-            raise HTTPException(status_code=400, detail="Missing username or password")
-
         user = db.execute(
             text("SELECT id, username, hashed_password FROM users WHERE username = :uname"),
             {"uname": username}
         ).fetchone()
 
         if not user or not bcrypt.checkpw(password.encode("utf-8"), user.hashed_password.encode("utf-8")):
-            raise HTTPException(status_code=401, detail="Invalid username or password")
+            return JSONResponse(status_code=401, content={"detail": "Invalid username or password"})
 
         return {"access_token": user.username, "token_type": "bearer"}
-    except HTTPException as he:
-        return JSONResponse(status_code=he.status_code, content={"detail": he.detail})
     except Exception as e:
         return JSONResponse(status_code=500, content={"detail": str(e)})
