@@ -35,9 +35,10 @@ def get_db():
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     tb = traceback.format_exc()
+    # Always return JSON even for unexpected 500 errors to prevent JSON parse crashes on frontend
     return JSONResponse(
         status_code=500,
-        content={"error": str(exc), "traceback": tb.split("\n")}
+        content={"detail": str(exc), "traceback": tb.split("\n")}
     )
 
 @app.get("/api/health")
@@ -48,7 +49,7 @@ def health_check():
             conn.execute(text("SELECT 1"))
         return {"status": "healthy", "database": "connected successfully"}
     except Exception as e:
-        return {"status": "unhealthy", "error": str(e)}
+        return JSONResponse(status_code=500, content={"detail": str(e)})
 
 @app.get("/login")
 @app.get("/api/login")
@@ -76,7 +77,11 @@ async def login_post(request: Request, db: Session = Depends(get_db)):
                     {"uname": "admin", "pwd": hashed}
                 )
 
-        data = await request.json()
+        try:
+            data = await request.json()
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid JSON payload")
+
         username = data.get("username")
         password = data.get("password")
 
@@ -93,6 +98,6 @@ async def login_post(request: Request, db: Session = Depends(get_db)):
 
         return {"access_token": user.username, "token_type": "bearer"}
     except HTTPException as he:
-        raise he
+        return JSONResponse(status_code=he.status_code, content={"detail": he.detail})
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return JSONResponse(status_code=500, content={"detail": str(e)})
