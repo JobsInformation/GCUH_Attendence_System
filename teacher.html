@@ -120,7 +120,11 @@
                     body: formData
                 });
 
-                if (!res.ok) throw new Error("Invalid username or password");
+                if (!res.ok) {     
+                    let detail = "";     
+                    try { detail = (await res.json()).detail || ""; } 
+                    catch (_) {}     
+                    throw new Error(`${res.status} ${detail || res.statusText}`); }
                 const data = await res.json();
                 
                 authToken = data.access_token;
