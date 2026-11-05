@@ -55,7 +55,7 @@ def health_check():
 @app.api_route("/api/login", methods=["GET", "POST"])
 async def login_route(request: Request, db: Session = Depends(get_db)):
     if request.method == "GET":
-        return {"message": "Login endpoint is active. Please send a POST request with username and password."}
+        return {"message": "Login endpoint is active."}
     
     username, password = None, None
     try:
@@ -120,6 +120,8 @@ async def login_route(request: Request, db: Session = Depends(get_db)):
     except Exception as e:
         return JSONResponse(status_code=500, content={"detail": str(e)})
 
+@app.api_route("/lecture/start", methods=["GET", "POST"])
+@app.api_route("/api/lecture/start", methods=["GET", "POST"])
 @app.api_route("/start-lecture", methods=["GET", "POST"])
 @app.api_route("/api/start-lecture", methods=["GET", "POST"])
 async def start_lecture_route(request: Request, db: Session = Depends(get_db)):
