@@ -32,10 +32,14 @@ def health_check():
     import psycopg2
     from sqlalchemy import create_engine, text
     
-    DATABASE_URL = os.getenv("DATABASE_URL")
-    if not DATABASE_URL:
-        return {"status": "error", "message": "DATABASE_URL environment variable is missing"}
-        
+    RAW_URL = os.getenv("DATABASE_URL", "postgresql://neondb_owner:npg_n1QztYNasx5I@ep-crimson-bread-b5d68uh1-pooler.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require")
+    
+    # Ensure SQLAlchemy explicitly uses psycopg2 instead of trying to load psycopg v3
+    if RAW_URL.startswith("postgresql://") and "+psycopg2" not in RAW_URL:
+        DATABASE_URL = RAW_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
+    else:
+        DATABASE_URL = RAW_URL
+
     engine = create_engine(DATABASE_URL)
     with engine.connect() as conn:
         conn.execute(text("SELECT 1"))
