@@ -172,3 +172,12 @@ async def login(request: Request, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
     return {"access_token": user.username, "token_type": "bearer"}
+
+@app.get("/api/health")
+@app.get("/health")
+async def health_check(db: Session = Depends(get_db)):
+    try:
+        db.execute(text("SELECT 1"))
+        return {"status": "healthy", "database": "connected successfully"}
+    except Exception as e:
+        return {"status": "unhealthy", "database": "connection failed", "error": str(e)}
