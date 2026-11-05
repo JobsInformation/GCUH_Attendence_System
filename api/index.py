@@ -1,6 +1,8 @@
 import os
 import traceback
-from fastapi import FastAPI, Request, Depends, HTTPException, Form
+import uuid
+from datetime import datetime
+from fastapi import FastAPI, Request, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import create_engine, text
@@ -50,18 +52,10 @@ def health_check():
     except Exception as e:
         return JSONResponse(status_code=500, content={"detail": str(e)})
 
-@app.get("/login")
-@app.get("/api/login")
-def login_get_info():
-    return {"message": "Login endpoint is active. Please send a POST request with username and password."}
-
 @app.post("/login")
 @app.post("/api/login")
 async def login_post(request: Request, db: Session = Depends(get_db)):
-    username = None
-    password = None
-
-    # 1. Try parsing JSON body
+    username, password = None, None
     try:
         body = await request.json()
         if isinstance(body, dict):
@@ -70,7 +64,6 @@ async def login_post(request: Request, db: Session = Depends(get_db)):
     except Exception:
         pass
 
-    # 2. Fallback to Form Data if JSON failed or was empty
     if not username or not password:
         try:
             form = await request.form()
@@ -80,16 +73,29 @@ async def login_post(request: Request, db: Session = Depends(get_db)):
             pass
 
     if not username or not password:
-        return JSONResponse(status_code=400, content={"detail": "Missing username or password in payload"})
+        return JSONResponse(status_code=400, content={"detail": "Missing username or password"})
 
     try:
-        # Lazily ensure users table exists and seed admin user
         with engine.begin() as conn:
             conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS users (
                     id SERIAL PRIMARY KEY,
                     username VARCHAR(50) UNIQUE NOT NULL,
                     hashed_password VARCHAR(255) NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS lectures (
+                    id SERIAL PRIMARY KEY,
+                    lecture_id VARCHAR(100) UNIQUE NOT NULL,
+                    teacher_id VARCHAR(100),
+                    secure_token VARCHAR(255),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE TABLE IF NOT EXISTS attendance (
+                    id SERIAL PRIMARY KEY,
+                    lecture_id VARCHAR(100),
+                    roll_number VARCHAR(50),
+                    name VARCHAR(100),
+                    time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
             """))
             res = conn.execute(text("SELECT id FROM users WHERE username = 'admin'")).fetchone()
@@ -109,5 +115,62 @@ async def login_post(request: Request, db: Session = Depends(get_db)):
             return JSONResponse(status_code=401, content={"detail": "Invalid username or password"})
 
         return {"access_token": user.username, "token_type": "bearer"}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"detail": str(e)})
+
+@app.post("/start-lecture")
+@app.post("/api/start-lecture")
+async def start_lecture(request: Request, db: Session = Depends(get_db)):
+    try:
+        data = {}
+        try:
+            data = await request.json()
+        except Exception:
+            pass
+
+        teacher_id = data.get("teacher_id", "IT-Instructor-01")
+        lecture_id = f"LEC-{uuid.uuid4().hex[:8].upper()}"
+        secure_token = str(uuid.uuid4())
+
+        with engine.begin() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS lectures (
+                    id SERIAL PRIMARY KEY,
+                    lecture_id VARCHAR(100) UNIQUE NOT NULL,
+                    teacher_id VARCHAR(100),
+                    secure_token VARCHAR(255),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """))
+            conn.execute(
+                text("INSERT INTO lectures (lecture_id, teacher_id, secure_token) VALUES (:lid, :tid, :tok)"),
+                {"lid": lecture_id, "tid": teacher_id, "tok": secure_token}
+            )
+
+        return {
+            "success": True,
+            "lecture_id": lecture_id,
+            "secure_token": secure_token,
+            "message": "Lecture started successfully"
+        }
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"detail": str(e)})
+
+@app.get("/attendance-feed")
+@app.get("/api/attendance-feed")
+def attendance_feed(lecture_id: str = None, db: Session = Depends(get_db)):
+    try:
+        if lecture_id:
+            records = db.execute(
+                text("SELECT roll_number, name, time FROM attendance WHERE lecture_id = :lid ORDER BY time DESC"),
+                {"lid": lecture_id}
+            .fetchall()
+        else:
+            records = db.execute(
+                text("SELECT roll_number, name, time FROM attendance ORDER BY time DESC LIMIT 50")
+            ).fetchall()
+        
+        feed = [{"roll_number": r[0], "name": r[1], "time": str(r[2])} for r in records]
+        return {"attendance": feed, "count": len(feed)}
     except Exception as e:
         return JSONResponse(status_code=500, content={"detail": str(e)})
