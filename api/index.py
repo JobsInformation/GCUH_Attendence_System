@@ -47,7 +47,14 @@ def health_check():
         conn.execute(text("SELECT 1"))
     return {"status": "healthy", "database": "connected successfully"}
 
-async def handle_login(request: Request, db: Session):
+@app.get("/login")
+@app.get("/api/login")
+def login_get_info():
+    return {"message": "Login endpoint is active. Please send a POST request with username and password."}
+
+@app.post("/login")
+@app.post("/api/login")
+async def login_post(request: Request, db: Session = Depends(get_db)):
     try:
         data = await request.json()
         username = data.get("username")
@@ -69,8 +76,3 @@ async def handle_login(request: Request, db: Session):
         raise he
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/login")
-@app.post("/api/login")
-async def login_route(request: Request, db: Session = Depends(get_db)):
-    return await handle_login(request, db)
