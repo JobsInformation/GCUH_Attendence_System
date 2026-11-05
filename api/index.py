@@ -1,7 +1,6 @@
 import os
 import traceback
 import uuid
-from datetime import datetime
 from fastapi import FastAPI, Request, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -42,8 +41,8 @@ async def global_exception_handler(request: Request, exc: Exception):
         content={"detail": str(exc), "traceback": tb.split("\n")}
     )
 
-@app.get("/api/health")
-@app.get("/health")
+@app.api_route("/api/health", methods=["GET", "POST"])
+@app.api_route("/health", methods=["GET", "POST"])
 def health_check():
     try:
         with engine.connect() as conn:
@@ -52,9 +51,12 @@ def health_check():
     except Exception as e:
         return JSONResponse(status_code=500, content={"detail": str(e)})
 
-@app.post("/login")
-@app.post("/api/login")
-async def login_post(request: Request, db: Session = Depends(get_db)):
+@app.api_route("/login", methods=["GET", "POST"])
+@app.api_route("/api/login", methods=["GET", "POST"])
+async def login_route(request: Request, db: Session = Depends(get_db)):
+    if request.method == "GET":
+        return {"message": "Login endpoint is active. Please send a POST request with username and password."}
+    
     username, password = None, None
     try:
         body = await request.json()
@@ -118,9 +120,9 @@ async def login_post(request: Request, db: Session = Depends(get_db)):
     except Exception as e:
         return JSONResponse(status_code=500, content={"detail": str(e)})
 
-@app.post("/start-lecture")
-@app.post("/api/start-lecture")
-async def start_lecture(request: Request, db: Session = Depends(get_db)):
+@app.api_route("/start-lecture", methods=["GET", "POST"])
+@app.api_route("/api/start-lecture", methods=["GET", "POST"])
+async def start_lecture_route(request: Request, db: Session = Depends(get_db)):
     try:
         data = {}
         try:
@@ -156,15 +158,15 @@ async def start_lecture(request: Request, db: Session = Depends(get_db)):
     except Exception as e:
         return JSONResponse(status_code=500, content={"detail": str(e)})
 
-@app.get("/attendance-feed")
-@app.get("/api/attendance-feed")
-def attendance_feed(lecture_id: str = None, db: Session = Depends(get_db)):
+@app.api_route("/attendance-feed", methods=["GET", "POST"])
+@app.api_route("/api/attendance-feed", methods=["GET", "POST"])
+def attendance_feed_route(lecture_id: str = None, db: Session = Depends(get_db)):
     try:
         if lecture_id:
             records = db.execute(
                 text("SELECT roll_number, name, time FROM attendance WHERE lecture_id = :lid ORDER BY time DESC"),
                 {"lid": lecture_id}
-            .fetchall()
+            ).fetchall()
         else:
             records = db.execute(
                 text("SELECT roll_number, name, time FROM attendance ORDER BY time DESC LIMIT 50")
