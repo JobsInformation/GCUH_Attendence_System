@@ -241,7 +241,7 @@ async def student_check_in(request: Request, db: Session = Depends(get_db)):
 
         lecture_id = lecture_row[0] if lecture_row else "Lecture-General"
 
-        # Record attendance
+        # Record attendance and ensure department column exists
         with engine.begin() as conn:
             conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS attendance (
@@ -252,6 +252,7 @@ async def student_check_in(request: Request, db: Session = Depends(get_db)):
                     department VARCHAR(100),
                     time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
+                ALTER TABLE attendance ADD COLUMN IF NOT EXISTS department VARCHAR(100);
             """))
             conn.execute(
                 text("INSERT INTO attendance (lecture_id, roll_number, name, department) VALUES (:lid, :rno, :name, :dept)"),
@@ -280,6 +281,7 @@ async def teacher_reports(lecture_id: str, db: Session = Depends(get_db)):
                     department VARCHAR(100),
                     time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
+                ALTER TABLE attendance ADD COLUMN IF NOT EXISTS department VARCHAR(100);
             """))
         
         records = db.execute(
