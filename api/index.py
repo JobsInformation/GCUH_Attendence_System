@@ -115,9 +115,6 @@ async def login_route(request: Request, db: Session = Depends(get_db)):
 @app.api_route("/api/start-lecture", methods=["GET", "POST"])
 async def start_lecture_route(request: Request, db: Session = Depends(get_db)):
     try:
-        # Optional: inspect authorization header if needed, but allow request through
-        auth_header = request.headers.get("authorization")
-        
         lecture_title = f"Lecture-{uuid.uuid4().hex[:6].upper()}"
         secure_token = str(uuid.uuid4())
 
@@ -141,6 +138,43 @@ async def start_lecture_route(request: Request, db: Session = Depends(get_db)):
             "secure_token": secure_token,
             "message": "Lecture started successfully"
         }
+    except Exception as e:
+        err = str(e)
+        return JSONResponse(status_code=500, content={"error": err, "message": err})
+
+@app.api_route("/lecture/token", methods=["GET", "POST"])
+@app.api_route("/api/lecture/token", methods=["GET", "POST"])
+@app.api_route("/token", methods=["GET", "POST"])
+@app.api_route("/api/token", methods=["GET", "POST"])
+async def get_lecture_token(lecture_id: str = None, title: str = None, db: Session = Depends(get_db)):
+    try:
+        target_id = lecture_id or title
+        with engine.begin() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS lectures (
+                    id SERIAL PRIMARY KEY,
+                    title VARCHAR(100) NOT NULL,
+                    token VARCHAR(255) NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """))
+        
+        if target_id:
+            row = db.execute(
+                text("SELECT token FROM lectures WHERE title = :tid ORDER BY id DESC LIMIT 1"),
+                {"tid": target_id}
+            ).fetchone()
+        else:
+            row = db.execute(
+                text("SELECT token FROM lectures ORDER BY id DESC LIMIT 1")
+            ).fetchone()
+
+        if not row:
+            # Fallback generate token if none found
+            fallback_token = str(uuid.uuid4())
+            return {"success": True, "token": fallback_token, "secure_token": fallback_token}
+
+        return {"success": True, "token": row[0], "secure_token": row[0]}
     except Exception as e:
         err = str(e)
         return JSONResponse(status_code=500, content={"error": err, "message": err})
