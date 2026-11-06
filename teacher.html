@@ -136,3 +136,116 @@
             if (!authToken) {
                 alert("Please log in first.");
                 return;
+            }
+
+            const teacherId = document.getElementById('teacherId').value.trim();
+
+            try {
+                const startRes = await fetch('/api/lecture/start', {
+                    method: "POST",
+                    headers: { 
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({ teacher_id: teacherId })
+                });
+
+                if (!startRes.ok) throw new Error("Failed to start lecture");
+                const startData = await startRes.json();
+                
+                currentLectureId = startData.lecture_id;
+                document.getElementById('lectureId').value = currentLectureId;
+
+                fetchAndRenderQR(currentLectureId);
+                fetchAttendanceReport(currentLectureId);
+
+                if (rotationInterval) clearInterval(rotationInterval);
+                let timeLeft = 10;
+                
+                rotationInterval = setInterval(() => {
+                    timeLeft--;
+                    document.getElementById('timerText').innerText = `Refreshing in ${timeLeft}s...`;
+                    if (timeLeft <= 0) {
+                        fetchAndRenderQR(currentLectureId);
+                        timeLeft = 10;
+                    }
+                }, 1000);
+
+                if (reportInterval) clearInterval(reportInterval);
+                reportInterval = setInterval(() => {
+                    if (currentLectureId && currentLectureId !== "undefined") {
+                        fetchAttendanceReport(currentLectureId);
+                    }
+                }, 5000);
+
+            } catch (err) {
+                console.error("Lecture Start Error:", err);
+                alert("Error starting lecture: Unauthorized or connection error");
+            }
+        }
+
+        async function fetchAndRenderQR(lectureId) {
+            if (!lectureId || lectureId === "undefined") return;
+
+            try {
+                const res = await fetch(`/api/lecture/${lectureId}/token`);
+                if (!res.ok) throw new Error("Token fetch failed");
+                const data = await res.json();
+                
+                const token = data.token || data.secure_token;
+                document.getElementById('activeTokenText').innerText = `Token: ${token}`;
+                
+                const qrContainer = document.getElementById('qrCodeContainer');
+                if (qrContainer) {
+                    qrContainer.innerHTML = '';
+                    new QRCode(qrContainer, {
+                        text: token,
+                        width: 170,
+                        height: 170
+                    });
+                }
+            } catch (err) {
+                console.error("QR Fetch Error:", err);
+                document.getElementById('qrCodeContainer').innerHTML = '<span class="text-red-500 font-semibold text-xs">Connection Error</span>';
+            }
+        }
+
+        async function fetchAttendanceReport(lectureId) {
+            if (!lectureId || lectureId === "undefined") return;
+
+            try {
+                const res = await fetch(`/api/teacher/reports/${lectureId}`);
+                if (!res.ok) return;
+                const data = await res.json();
+                
+                const list = data.attendance_list || data.attendance || [];
+                const tbody = document.getElementById('attendanceTableBody');
+                document.getElementById('presentCountBadge').innerText = `${list.length} Present`;
+
+                if (list.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="3" class="p-4 text-center text-gray-400">No students checked in yet.</td></tr>`;
+                    return;
+                }
+
+                tbody.innerHTML = list.map(item => `
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="p-3 font-medium text-gray-700">${item.roll_number}</td>
+                        <td class="p-3 text-gray-600">${item.name}</td>
+                        <td class="p-3 text-gray-400 text-xs">${item.time}</td>
+                    </tr>
+                `).join('');
+            } catch (err) {
+                console.error("Report Poll Error:", err);
+            }
+        }
+
+        function exportCSV() {
+            if (!currentLectureId) {
+                alert("No active lecture to export.");
+                return;
+            }
+            window.location.href = `/api/teacher/reports/${currentLectureId}?export=csv`;
+        }
+    </script>
+</body>
+</html>
