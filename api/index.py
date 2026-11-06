@@ -177,39 +177,36 @@ async def get_specific_lecture_token(lecture_id: str, db: Session = Depends(get_
         err = str(e)
         return JSONResponse(status_code=500, content={"error": err, "message": err})
 
-@app.api_route("/attendance/check-in", methods=["GET", "POST"])
 @app.api_route("/api/attendance/check-in", methods=["GET", "POST"])
 @app.api_route("/check-in", methods=["GET", "POST"])
-@app.api_route("/api/check-in", methods=["GET", "POST"])
 async def student_check_in(request: Request, db: Session = Depends(get_db)):
     if request.method == "GET":
-        return {"message": "Student check-in endpoint is active. Use POST to submit attendance."}
+        return {"message": "Check-in endpoint active."}
     
-    roll_number, name, token = None, None, None
+    roll_number, name, department, token = None, None, None, None
     try:
         body = await request.json()
         if isinstance(body, dict):
             roll_number = body.get("roll_number") or body.get("rollNumber")
             name = body.get("name")
+            department = body.get("department", "Information Technology")
             token = body.get("token") or body.get("secure_token")
     except Exception:
         pass
 
-    if not roll_number or not name or not token:
-        try:
-            form = await request.form()
-            roll_number = form.get("roll_number") or form.get("rollNumber")
-            name = form.get("name")
-            token = form.get("token") or form.get("secure_token")
-        except Exception:
-            pass
-
-    if not roll_number or not name or not token:
-        return JSONResponse(status_code=400, content={"error": "Missing roll number, name, or token", "message": "Missing required fields"})
+    if not roll_number or not token:
+        return JSONResponse(status_code=400, content={"error": "Missing roll number or token", "message": "Roll number and token are required"})
 
     try:
         with engine.begin() as conn:
             conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS students (
+                    id SERIAL PRIMARY KEY,
+                    roll_number VARCHAR(50) UNIQUE NOT NULL,
+                    name VARCHAR(100) NOT NULL,
+                    department VARCHAR(100) DEFAULT 'Information Technology',
+                    student_status VARCHAR(50) DEFAULT 'Active'
+                );
                 CREATE TABLE IF NOT EXISTS lectures (
                     id SERIAL PRIMARY KEY,
                     title VARCHAR(100) NOT NULL,
@@ -221,17 +218,24 @@ async def student_check_in(request: Request, db: Session = Depends(get_db)):
                     lecture_id VARCHAR(100),
                     roll_number VARCHAR(50),
                     name VARCHAR(100),
+                    department VARCHAR(100),
                     time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
             """))
 
-        # Find which lecture owns this token (or get the latest lecture if token matches recently)
+            conn.execute(text("""
+                INSERT INTO students (roll_number, name, department, student_status)
+                VALUES (:rno, :name, :dept, 'Active')
+                ON CONFLICT (roll_number) DO UPDATE 
+                SET name = COALESCE(NULLIF(:name, ''), students.name),
+                    department = COALESCE(NULLIF(:dept, ''), students.department);
+            """), {"rno": roll_number, "name": name or "Student", "dept": department})
+
         lecture_row = db.execute(
             text("SELECT title FROM lectures WHERE token = :tok ORDER BY id DESC LIMIT 1"),
             {"tok": token}
         ).fetchone()
 
-        # If token doesn't match directly, fall back to the most recent active lecture for smooth user experience
         if not lecture_row:
             lecture_row = db.execute(
                 text("SELECT title FROM lectures ORDER BY id DESC LIMIT 1")
@@ -239,11 +243,10 @@ async def student_check_in(request: Request, db: Session = Depends(get_db)):
 
         lecture_id = lecture_row[0] if lecture_row else "Lecture-General"
 
-        # Insert attendance record
         with engine.begin() as conn:
             conn.execute(
-                text("INSERT INTO attendance (lecture_id, roll_number, name) VALUES (:lid, :rno, :name)"),
-                {"lid": lecture_id, "rno": roll_number, "name": name}
+                text("INSERT INTO attendance (lecture_id, roll_number, name, department) VALUES (:lid, :rno, :name, :dept)"),
+                {"lid": lecture_id, "rno": roll_number, "name": name or "Student", "dept": department}
             )
 
         return {"success": True, "message": "Attendance marked successfully!", "lecture_id": lecture_id}
@@ -265,47 +268,18 @@ async def teacher_reports(lecture_id: str, db: Session = Depends(get_db)):
                     lecture_id VARCHAR(100),
                     roll_number VARCHAR(50),
                     name VARCHAR(100),
+                    department VARCHAR(100),
                     time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
             """))
         
         records = db.execute(
-            text("SELECT roll_number, name, time FROM attendance WHERE lecture_id = :lid ORDER BY time DESC"),
+            text("SELECT roll_number, name, department, time FROM attendance WHERE lecture_id = :lid ORDER BY time DESC"),
             {"lid": lecture_id}
         ).fetchall()
         
-        feed = [{"roll_number": r[0], "name": r[1], "time": str(r[2])} for r in records]
+        feed = [{"roll_number": r[0], "name": r[1], "department": r[2], "time": str(r[3])} for r in records]
         return {"attendance_list": feed, "attendance": feed, "count": len(feed), "success": True}
-    except Exception as e:
-        err = str(e)
-        return JSONResponse(status_code=500, content={"error": err, "message": err})
-
-@app.api_route("/attendance-feed", methods=["GET", "POST"])
-@app.api_route("/api/attendance-feed", methods=["GET", "POST"])
-def attendance_feed_route(lecture_id: str = None, db: Session = Depends(get_db)):
-    try:
-        with engine.begin() as conn:
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS attendance (
-                    id SERIAL PRIMARY KEY,
-                    lecture_id VARCHAR(100),
-                    roll_number VARCHAR(50),
-                    name VARCHAR(100),
-                    time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-            """))
-        if lecture_id and lecture_id != "undefined":
-            records = db.execute(
-                text("SELECT roll_number, name, time FROM attendance WHERE lecture_id = :lid ORDER BY time DESC"),
-                {"lid": lecture_id}
-            ).fetchall()
-        else:
-            records = db.execute(
-                text("SELECT roll_number, name, time FROM attendance ORDER BY time DESC LIMIT 50")
-            ).fetchall()
-        
-        feed = [{"roll_number": r[0], "name": r[1], "time": str(r[2])} for r in records]
-        return {"attendance_list": feed, "attendance": feed, "count": len(feed)}
     except Exception as e:
         err = str(e)
         return JSONResponse(status_code=500, content={"error": err, "message": err})
