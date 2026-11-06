@@ -36,9 +36,10 @@ def get_db():
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     tb = traceback.format_exc()
+    err_msg = str(exc)
     return JSONResponse(
         status_code=500,
-        content={"detail": str(exc), "traceback": tb.split("\n")}
+        content={"error": err_msg, "message": err_msg, "detail": err_msg, "traceback": tb.split("\n")}
     )
 
 @app.api_route("/api/health", methods=["GET", "POST"])
@@ -49,7 +50,8 @@ def health_check():
             conn.execute(text("SELECT 1"))
         return {"status": "healthy", "database": "connected successfully"}
     except Exception as e:
-        return JSONResponse(status_code=500, content={"detail": str(e)})
+        err = str(e)
+        return JSONResponse(status_code=500, content={"error": err, "message": err})
 
 @app.api_route("/login", methods=["GET", "POST"])
 @app.api_route("/api/login", methods=["GET", "POST"])
@@ -75,7 +77,7 @@ async def login_route(request: Request, db: Session = Depends(get_db)):
             pass
 
     if not username or not password:
-        return JSONResponse(status_code=400, content={"detail": "Missing username or password"})
+        return JSONResponse(status_code=400, content={"error": "Missing username or password", "message": "Missing username or password"})
 
     try:
         with engine.begin() as conn:
@@ -84,20 +86,6 @@ async def login_route(request: Request, db: Session = Depends(get_db)):
                     id SERIAL PRIMARY KEY,
                     username VARCHAR(50) UNIQUE NOT NULL,
                     hashed_password VARCHAR(255) NOT NULL
-                );
-                CREATE TABLE IF NOT EXISTS lectures (
-                    id SERIAL PRIMARY KEY,
-                    lecture_id VARCHAR(100) UNIQUE NOT NULL,
-                    teacher_id VARCHAR(100),
-                    secure_token VARCHAR(255),
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-                CREATE TABLE IF NOT EXISTS attendance (
-                    id SERIAL PRIMARY KEY,
-                    lecture_id VARCHAR(100),
-                    roll_number VARCHAR(50),
-                    name VARCHAR(100),
-                    time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
             """))
             res = conn.execute(text("SELECT id FROM users WHERE username = 'admin'")).fetchone()
@@ -114,11 +102,12 @@ async def login_route(request: Request, db: Session = Depends(get_db)):
         ).fetchone()
 
         if not user or not bcrypt.checkpw(password.encode("utf-8"), user.hashed_password.encode("utf-8")):
-            return JSONResponse(status_code=401, content={"detail": "Invalid username or password"})
+            return JSONResponse(status_code=401, content={"error": "Invalid username or password", "message": "Invalid username or password"})
 
         return {"access_token": user.username, "token_type": "bearer"}
     except Exception as e:
-        return JSONResponse(status_code=500, content={"detail": str(e)})
+        err = str(e)
+        return JSONResponse(status_code=500, content={"error": err, "message": err})
 
 @app.api_route("/lecture/start", methods=["GET", "POST"])
 @app.api_route("/api/lecture/start", methods=["GET", "POST"])
@@ -126,44 +115,50 @@ async def login_route(request: Request, db: Session = Depends(get_db)):
 @app.api_route("/api/start-lecture", methods=["GET", "POST"])
 async def start_lecture_route(request: Request, db: Session = Depends(get_db)):
     try:
-        data = {}
-        try:
-            data = await request.json()
-        except Exception:
-            pass
-
-        teacher_id = data.get("teacher_id", "IT-Instructor-01")
-        lecture_id = f"LEC-{uuid.uuid4().hex[:8].upper()}"
+        # Optional: inspect authorization header if needed, but allow request through
+        auth_header = request.headers.get("authorization")
+        
+        lecture_title = f"Lecture-{uuid.uuid4().hex[:6].upper()}"
         secure_token = str(uuid.uuid4())
 
         with engine.begin() as conn:
             conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS lectures (
                     id SERIAL PRIMARY KEY,
-                    lecture_id VARCHAR(100) UNIQUE NOT NULL,
-                    teacher_id VARCHAR(100),
-                    secure_token VARCHAR(255),
+                    title VARCHAR(100) NOT NULL,
+                    token VARCHAR(255) NOT NULL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
             """))
             conn.execute(
-                text("INSERT INTO lectures (lecture_id, teacher_id, secure_token) VALUES (:lid, :tid, :tok)"),
-                {"lid": lecture_id, "tid": teacher_id, "tok": secure_token}
+                text("INSERT INTO lectures (title, token) VALUES (:title, :token)"),
+                {"title": lecture_title, "token": secure_token}
             )
 
         return {
             "success": True,
-            "lecture_id": lecture_id,
+            "lecture_id": lecture_title,
             "secure_token": secure_token,
             "message": "Lecture started successfully"
         }
     except Exception as e:
-        return JSONResponse(status_code=500, content={"detail": str(e)})
+        err = str(e)
+        return JSONResponse(status_code=500, content={"error": err, "message": err})
 
 @app.api_route("/attendance-feed", methods=["GET", "POST"])
 @app.api_route("/api/attendance-feed", methods=["GET", "POST"])
 def attendance_feed_route(lecture_id: str = None, db: Session = Depends(get_db)):
     try:
+        with engine.begin() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS attendance (
+                    id SERIAL PRIMARY KEY,
+                    lecture_id VARCHAR(100),
+                    roll_number VARCHAR(50),
+                    name VARCHAR(100),
+                    time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """))
         if lecture_id:
             records = db.execute(
                 text("SELECT roll_number, name, time FROM attendance WHERE lecture_id = :lid ORDER BY time DESC"),
@@ -177,4 +172,5 @@ def attendance_feed_route(lecture_id: str = None, db: Session = Depends(get_db))
         feed = [{"roll_number": r[0], "name": r[1], "time": str(r[2])} for r in records]
         return {"attendance": feed, "count": len(feed)}
     except Exception as e:
-        return JSONResponse(status_code=500, content={"detail": str(e)})
+        err = str(e)
+        return JSONResponse(status_code=500, content={"error": err, "message": err})
