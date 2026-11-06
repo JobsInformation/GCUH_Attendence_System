@@ -12,24 +12,29 @@
         
         <!-- Header -->
         <div class="text-center space-y-1">
-            <h1 class="text-xl font-bold text-gray-800">GCUH Student Portal</h1>
-            <p class="text-sm text-gray-500">Secure Attendance Check-in</p>
+            <h1 class="text-xl font-bold text-gray-800">Government College University Hyderabad</h1>
+            <p class="text-sm text-gray-500">Student Attendance Portal (Batch 2024)</p>
         </div>
 
         <!-- Check-in Form -->
         <form id="attendanceForm" onsubmit="submitAttendance(event)" class="space-y-4">
             <div>
                 <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Roll Number</label>
-                <input type="text" id="rollNumber" required placeholder="e.g. MSIT-2026-01" class="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <input type="text" id="rollNumber" required placeholder="e.g. BSIT-2024-001" oninput="fetchStudentDetails()" class="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono uppercase">
             </div>
 
             <div>
                 <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Full Name</label>
-                <input type="text" id="studentName" required placeholder="e.g. Syed Iqrar Ali" class="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <input type="text" id="studentName" required placeholder="Auto-populated from database roster" class="w-full border border-gray-300 rounded-lg p-3 bg-gray-50 text-gray-700 font-medium" readonly>
             </div>
 
             <div>
-                <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Secure Token (from QR)</label>
+                <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Department</label>
+                <input type="text" id="department" value="Information Technology" class="w-full border border-gray-300 rounded-lg p-3 bg-gray-50 text-gray-700" readonly>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Secure Token (from Teacher QR)</label>
                 <input type="text" id="secureToken" required placeholder="Paste token or scan QR" class="w-full border border-gray-300 rounded-lg p-3 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
             </div>
 
@@ -43,7 +48,6 @@
     </div>
 
     <script>
-        // Auto-fill token if passed via URL query parameter (e.g. student.html?token=XYZ)
         window.onload = function() {
             const urlParams = new URLSearchParams(window.location.search);
             const tokenParam = urlParams.get('token');
@@ -52,10 +56,35 @@
             }
         };
 
+        async function fetchStudentDetails() {
+            const rollNo = document.getElementById('rollNumber').value.trim();
+            const nameField = document.getElementById('studentName');
+            const deptField = document.getElementById('department');
+
+            if (rollNo.length < 5) {
+                nameField.value = "";
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/student/lookup/${encodeURIComponent(rollNo)}`);
+                const data = await res.json();
+                if (data.found) {
+                    nameField.value = data.name;
+                    deptField.value = data.department;
+                } else {
+                    nameField.value = "Roll Number not found in roster";
+                }
+            } catch (err) {
+                console.error("Lookup error:", err);
+            }
+        }
+
         async function submitAttendance(event) {
             event.preventDefault();
             const rollNumber = document.getElementById('rollNumber').value.trim();
             const name = document.getElementById('studentName').value.trim();
+            const department = document.getElementById('department').value.trim();
             const token = document.getElementById('secureToken').value.trim();
             const statusEl = document.getElementById('statusMessage');
 
@@ -67,7 +96,7 @@
                 const res = await fetch('/api/attendance/check-in', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ roll_number: rollNumber, name: name, token: token })
+                    body: JSON.stringify({ roll_number: rollNumber, name: name, department: department, token: token })
                 });
 
                 const data = await res.json();
@@ -75,7 +104,6 @@
 
                 statusEl.innerText = "🎉 Attendance marked successfully!";
                 statusEl.className = "text-center text-sm font-medium text-green-600";
-                document.getElementById('attendanceForm').reset();
             } catch (err) {
                 console.error("Check-in Error:", err);
                 statusEl.innerText = `❌ Error: ${err.message}`;

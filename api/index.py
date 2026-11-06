@@ -109,8 +109,6 @@ async def login_route(request: Request, db: Session = Depends(get_db)):
 
 @app.api_route("/lecture/start", methods=["GET", "POST"])
 @app.api_route("/api/lecture/start", methods=["GET", "POST"])
-@app.api_route("/start-lecture", methods=["GET", "POST"])
-@app.api_route("/api/start-lecture", methods=["GET", "POST"])
 async def start_lecture_route(request: Request, db: Session = Depends(get_db)):
     try:
         lecture_title = f"Lecture-{uuid.uuid4().hex[:6].upper()}"
@@ -177,6 +175,26 @@ async def get_specific_lecture_token(lecture_id: str, db: Session = Depends(get_
         err = str(e)
         return JSONResponse(status_code=500, content={"error": err, "message": err})
 
+@app.api_route("/api/student/lookup/{roll_number}", methods=["GET"])
+def lookup_student(roll_number: str, db: Session = Depends(get_db)):
+    try:
+        row = db.execute(
+            text("SELECT roll_number, full_name, department FROM students WHERE roll_number = :rno"),
+            {"rno": roll_number.strip()}
+        ).fetchone()
+
+        if not row:
+            return JSONResponse(status_code=404, content={"found": False, "message": "Roll number not found in official batch roster."})
+
+        return {
+            "found": True,
+            "roll_number": row[0],
+            "name": row[1],
+            "department": row[2] or "Information Technology"
+        }
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
 @app.api_route("/api/attendance/check-in", methods=["GET", "POST"])
 @app.api_route("/check-in", methods=["GET", "POST"])
 async def student_check_in(request: Request, db: Session = Depends(get_db)):
@@ -198,39 +216,19 @@ async def student_check_in(request: Request, db: Session = Depends(get_db)):
         return JSONResponse(status_code=400, content={"error": "Missing roll number or token", "message": "Roll number and token are required"})
 
     try:
-        with engine.begin() as conn:
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS students (
-                    id SERIAL PRIMARY KEY,
-                    roll_number VARCHAR(50) UNIQUE NOT NULL,
-                    name VARCHAR(100) NOT NULL,
-                    department VARCHAR(100) DEFAULT 'Information Technology',
-                    student_status VARCHAR(50) DEFAULT 'Active'
-                );
-                CREATE TABLE IF NOT EXISTS lectures (
-                    id SERIAL PRIMARY KEY,
-                    title VARCHAR(100) NOT NULL,
-                    token VARCHAR(255) NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-                CREATE TABLE IF NOT EXISTS attendance (
-                    id SERIAL PRIMARY KEY,
-                    lecture_id VARCHAR(100),
-                    roll_number VARCHAR(50),
-                    name VARCHAR(100),
-                    department VARCHAR(100),
-                    time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-            """))
+        # Verify student exists in official roster
+        student_row = db.execute(
+            text("SELECT full_name, department FROM students WHERE roll_number = :rno"),
+            {"rno": roll_number.strip()}
+        ).fetchone()
 
-            conn.execute(text("""
-                INSERT INTO students (roll_number, name, department, student_status)
-                VALUES (:rno, :name, :dept, 'Active')
-                ON CONFLICT (roll_number) DO UPDATE 
-                SET name = COALESCE(NULLIF(:name, ''), students.name),
-                    department = COALESCE(NULLIF(:dept, ''), students.department);
-            """), {"rno": roll_number, "name": name or "Student", "dept": department})
+        if not student_row:
+            return JSONResponse(status_code=404, content={"error": "Roll number not registered in batch roster", "message": "Roll number not found in database"})
 
+        actual_name = student_row[0]
+        actual_dept = student_row[1] or "Information Technology"
+
+        # Get active lecture
         lecture_row = db.execute(
             text("SELECT title FROM lectures WHERE token = :tok ORDER BY id DESC LIMIT 1"),
             {"tok": token}
@@ -243,10 +241,21 @@ async def student_check_in(request: Request, db: Session = Depends(get_db)):
 
         lecture_id = lecture_row[0] if lecture_row else "Lecture-General"
 
+        # Record attendance
         with engine.begin() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS attendance (
+                    id SERIAL PRIMARY KEY,
+                    lecture_id VARCHAR(100),
+                    roll_number VARCHAR(50),
+                    name VARCHAR(100),
+                    department VARCHAR(100),
+                    time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """))
             conn.execute(
                 text("INSERT INTO attendance (lecture_id, roll_number, name, department) VALUES (:lid, :rno, :name, :dept)"),
-                {"lid": lecture_id, "rno": roll_number, "name": name or "Student", "dept": department}
+                {"lid": lecture_id, "rno": roll_number.strip(), "name": actual_name, "dept": actual_dept}
             )
 
         return {"success": True, "message": "Attendance marked successfully!", "lecture_id": lecture_id}
