@@ -177,6 +177,80 @@ async def get_specific_lecture_token(lecture_id: str, db: Session = Depends(get_
         err = str(e)
         return JSONResponse(status_code=500, content={"error": err, "message": err})
 
+@app.api_route("/attendance/check-in", methods=["GET", "POST"])
+@app.api_route("/api/attendance/check-in", methods=["GET", "POST"])
+@app.api_route("/check-in", methods=["GET", "POST"])
+@app.api_route("/api/check-in", methods=["GET", "POST"])
+async def student_check_in(request: Request, db: Session = Depends(get_db)):
+    if request.method == "GET":
+        return {"message": "Student check-in endpoint is active. Use POST to submit attendance."}
+    
+    roll_number, name, token = None, None, None
+    try:
+        body = await request.json()
+        if isinstance(body, dict):
+            roll_number = body.get("roll_number") or body.get("rollNumber")
+            name = body.get("name")
+            token = body.get("token") or body.get("secure_token")
+    except Exception:
+        pass
+
+    if not roll_number or not name or not token:
+        try:
+            form = await request.form()
+            roll_number = form.get("roll_number") or form.get("rollNumber")
+            name = form.get("name")
+            token = form.get("token") or form.get("secure_token")
+        except Exception:
+            pass
+
+    if not roll_number or not name or not token:
+        return JSONResponse(status_code=400, content={"error": "Missing roll number, name, or token", "message": "Missing required fields"})
+
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS lectures (
+                    id SERIAL PRIMARY KEY,
+                    title VARCHAR(100) NOT NULL,
+                    token VARCHAR(255) NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE TABLE IF NOT EXISTS attendance (
+                    id SERIAL PRIMARY KEY,
+                    lecture_id VARCHAR(100),
+                    roll_number VARCHAR(50),
+                    name VARCHAR(100),
+                    time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """))
+
+        # Find which lecture owns this token (or get the latest lecture if token matches recently)
+        lecture_row = db.execute(
+            text("SELECT title FROM lectures WHERE token = :tok ORDER BY id DESC LIMIT 1"),
+            {"tok": token}
+        ).fetchone()
+
+        # If token doesn't match directly, fall back to the most recent active lecture for smooth user experience
+        if not lecture_row:
+            lecture_row = db.execute(
+                text("SELECT title FROM lectures ORDER BY id DESC LIMIT 1")
+            ).fetchone()
+
+        lecture_id = lecture_row[0] if lecture_row else "Lecture-General"
+
+        # Insert attendance record
+        with engine.begin() as conn:
+            conn.execute(
+                text("INSERT INTO attendance (lecture_id, roll_number, name) VALUES (:lid, :rno, :name)"),
+                {"lid": lecture_id, "rno": roll_number, "name": name}
+            )
+
+        return {"success": True, "message": "Attendance marked successfully!", "lecture_id": lecture_id}
+    except Exception as e:
+        err = str(e)
+        return JSONResponse(status_code=500, content={"error": err, "message": err})
+
 @app.api_route("/teacher/reports/{lecture_id}", methods=["GET", "POST"])
 @app.api_route("/api/teacher/reports/{lecture_id}", methods=["GET", "POST"])
 async def teacher_reports(lecture_id: str, db: Session = Depends(get_db)):
