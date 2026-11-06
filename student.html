@@ -6,6 +6,8 @@
     <title>GCUH Student Attendance Portal</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Html5-Qrcode Scanner Library -->
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 </head>
 <body class="bg-gray-50 min-h-screen flex items-center justify-center p-6">
     <div class="max-w-md w-full bg-white p-8 rounded-2xl shadow-lg border border-gray-100 space-y-6">
@@ -13,7 +15,15 @@
         <!-- Header -->
         <div class="text-center space-y-1">
             <h1 class="text-xl font-bold text-gray-800">Government College University Hyderabad</h1>
-            <p class="text-sm text-gray-500">Student Attendance Portal (Batch 2024)</p>
+            <p class="text-sm text-gray-500">Student Attendance Portal & QR Scanner</p>
+        </div>
+
+        <!-- Camera Scanner Section -->
+        <div class="space-y-2">
+            <button type="button" onclick="startScanner()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-xl transition-colors shadow-sm flex items-center justify-center space-x-2">
+                <span>📷 Scan QR with Camera</span>
+            </button>
+            <div id="reader" class="w-full rounded-xl overflow-hidden hidden border border-gray-200"></div>
         </div>
 
         <!-- Check-in Form -->
@@ -34,8 +44,8 @@
             </div>
 
             <div>
-                <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Secure Token (from Teacher QR)</label>
-                <input type="text" id="secureToken" required placeholder="Paste token or scan QR" class="w-full border border-gray-300 rounded-lg p-3 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Secure Token (from QR)</label>
+                <input type="text" id="secureToken" required placeholder="Scanned token will appear here" class="w-full border border-gray-300 rounded-lg p-3 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50">
             </div>
 
             <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition-colors shadow-md">
@@ -48,6 +58,8 @@
     </div>
 
     <script>
+        let html5QrCode = null;
+
         window.onload = function() {
             const urlParams = new URLSearchParams(window.location.search);
             const tokenParam = urlParams.get('token');
@@ -55,6 +67,35 @@
                 document.getElementById('secureToken').value = tokenParam;
             }
         };
+
+        function startScanner() {
+            const readerDiv = document.getElementById('reader');
+            readerDiv.classList.remove('hidden');
+
+            if (!html5QrCode) {
+                html5QrCode = new Html5Qrcode("reader");
+            }
+
+            html5QrCode.start(
+                { facingMode: "environment" },
+                { fps: 10, qrbox: { width: 250, height: 250 } },
+                (decodedText, decodedResult) => {
+                    // Success callback when QR is scanned
+                    document.getElementById('secureToken').value = decodedText;
+                    
+                    // Stop scanner after successful scan
+                    html5QrCode.stop().then(() => {
+                        readerDiv.classList.add('hidden');
+                    }).catch(err => console.error("Failed to stop scanner.", err));
+                },
+                (errorMessage) => {
+                    // Scanning error or searching frame (safe to ignore)
+                }
+            ).catch(err => {
+                console.error("Unable to start scanning.", err);
+                alert("Camera access denied or unavailable. Please check mobile browser permissions.");
+            });
+        }
 
         async function fetchStudentDetails() {
             const rollNo = document.getElementById('rollNumber').value.trim();
