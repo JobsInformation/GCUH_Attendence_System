@@ -136,19 +136,17 @@ async def start_lecture_route(request: Request, db: Session = Depends(get_db)):
             "success": True,
             "lecture_id": lecture_title,
             "secure_token": secure_token,
+            "token": secure_token,
             "message": "Lecture started successfully"
         }
     except Exception as e:
         err = str(e)
         return JSONResponse(status_code=500, content={"error": err, "message": err})
 
-@app.api_route("/lecture/token", methods=["GET", "POST"])
-@app.api_route("/api/lecture/token", methods=["GET", "POST"])
-@app.api_route("/token", methods=["GET", "POST"])
-@app.api_route("/api/token", methods=["GET", "POST"])
-async def get_lecture_token(lecture_id: str = None, title: str = None, db: Session = Depends(get_db)):
+@app.api_route("/lecture/{lecture_id}/token", methods=["GET", "POST"])
+@app.api_route("/api/lecture/{lecture_id}/token", methods=["GET", "POST"])
+async def get_specific_lecture_token(lecture_id: str, db: Session = Depends(get_db)):
     try:
-        target_id = lecture_id or title
         with engine.begin() as conn:
             conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS lectures (
@@ -159,22 +157,51 @@ async def get_lecture_token(lecture_id: str = None, title: str = None, db: Sessi
                 );
             """))
         
-        if target_id:
-            row = db.execute(
-                text("SELECT token FROM lectures WHERE title = :tid ORDER BY id DESC LIMIT 1"),
-                {"tid": target_id}
-            ).fetchone()
-        else:
-            row = db.execute(
-                text("SELECT token FROM lectures ORDER BY id DESC LIMIT 1")
-            ).fetchone()
+        row = db.execute(
+            text("SELECT token FROM lectures WHERE title = :tid ORDER BY id DESC LIMIT 1"),
+            {"tid": lecture_id}
+        ).fetchone()
 
         if not row:
-            # Fallback generate token if none found
-            fallback_token = str(uuid.uuid4())
-            return {"success": True, "token": fallback_token, "secure_token": fallback_token}
+            # Generate and insert a new rotating token if lecture not explicitly found
+            new_token = str(uuid.uuid4())
+            try:
+                with engine.begin() as conn:
+                    conn.execute(
+                        text("INSERT INTO lectures (title, token) VALUES (:title, :token)"),
+                        {"title": lecture_id, "token": new_token}
+                    )
+            except Exception:
+                pass
+            return {"success": True, "token": new_token, "secure_token": new_token}
 
         return {"success": True, "token": row[0], "secure_token": row[0]}
+    except Exception as e:
+        err = str(e)
+        return JSONResponse(status_code=500, content={"error": err, "message": err})
+
+@app.api_route("/teacher/reports/{lecture_id}", methods=["GET", "POST"])
+@app.api_route("/api/teacher/reports/{lecture_id}", methods=["GET", "POST"])
+async def teacher_reports(lecture_id: str, db: Session = Depends(get_db)):
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS attendance (
+                    id SERIAL PRIMARY KEY,
+                    lecture_id VARCHAR(100),
+                    roll_number VARCHAR(50),
+                    name VARCHAR(100),
+                    time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """))
+        
+        records = db.execute(
+            text("SELECT roll_number, name, time FROM attendance WHERE lecture_id = :lid ORDER BY time DESC"),
+            {"lid": lecture_id}
+        ).fetchall()
+        
+        feed = [{"roll_number": r[0], "name": r[1], "time": str(r[2])} for r in records]
+        return {"attendance": feed, "count": len(feed), "success": True}
     except Exception as e:
         err = str(e)
         return JSONResponse(status_code=500, content={"error": err, "message": err})
