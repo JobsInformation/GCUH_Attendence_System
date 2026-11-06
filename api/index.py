@@ -88,13 +88,12 @@ async def login_route(request: Request, db: Session = Depends(get_db)):
                     hashed_password VARCHAR(255) NOT NULL
                 );
             """))
-            res = conn.execute(text("SELECT id FROM users WHERE username = 'admin'")).fetchone()
-            if not res:
-                hashed = bcrypt.hashpw("securepassword123".encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-                conn.execute(
-                    text("INSERT INTO users (username, hashed_password) VALUES (:uname, :pwd)"),
-                    {"uname": "admin", "pwd": hashed}
-                )
+            # Ensure admin user exists with correct password 'securepassword123'
+            hashed = bcrypt.hashpw("securepassword123".encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+            conn.execute(text("""
+                INSERT INTO users (username, hashed_password) VALUES ('admin', :pwd)
+                ON CONFLICT (username) DO UPDATE SET hashed_password = :pwd;
+            """), {"pwd": hashed})
 
         user = db.execute(
             text("SELECT id, username, hashed_password FROM users WHERE username = :uname"),
@@ -163,7 +162,6 @@ async def get_specific_lecture_token(lecture_id: str, db: Session = Depends(get_
         ).fetchone()
 
         if not row:
-            # Generate and insert a new rotating token if lecture not explicitly found
             new_token = str(uuid.uuid4())
             try:
                 with engine.begin() as conn:
