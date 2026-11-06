@@ -88,7 +88,6 @@ async def login_route(request: Request, db: Session = Depends(get_db)):
                     hashed_password VARCHAR(255) NOT NULL
                 );
             """))
-            # Ensure admin user exists with correct password 'securepassword123'
             hashed = bcrypt.hashpw("securepassword123".encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
             conn.execute(text("""
                 INSERT INTO users (username, hashed_password) VALUES ('admin', :pwd)
@@ -182,6 +181,9 @@ async def get_specific_lecture_token(lecture_id: str, db: Session = Depends(get_
 @app.api_route("/api/teacher/reports/{lecture_id}", methods=["GET", "POST"])
 async def teacher_reports(lecture_id: str, db: Session = Depends(get_db)):
     try:
+        if lecture_id == "undefined" or not lecture_id:
+            return {"attendance_list": [], "attendance": [], "count": 0, "success": True}
+
         with engine.begin() as conn:
             conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS attendance (
@@ -199,7 +201,7 @@ async def teacher_reports(lecture_id: str, db: Session = Depends(get_db)):
         ).fetchall()
         
         feed = [{"roll_number": r[0], "name": r[1], "time": str(r[2])} for r in records]
-        return {"attendance": feed, "count": len(feed), "success": True}
+        return {"attendance_list": feed, "attendance": feed, "count": len(feed), "success": True}
     except Exception as e:
         err = str(e)
         return JSONResponse(status_code=500, content={"error": err, "message": err})
@@ -218,7 +220,7 @@ def attendance_feed_route(lecture_id: str = None, db: Session = Depends(get_db))
                     time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
             """))
-        if lecture_id:
+        if lecture_id and lecture_id != "undefined":
             records = db.execute(
                 text("SELECT roll_number, name, time FROM attendance WHERE lecture_id = :lid ORDER BY time DESC"),
                 {"lid": lecture_id}
@@ -229,7 +231,7 @@ def attendance_feed_route(lecture_id: str = None, db: Session = Depends(get_db))
             ).fetchall()
         
         feed = [{"roll_number": r[0], "name": r[1], "time": str(r[2])} for r in records]
-        return {"attendance": feed, "count": len(feed)}
+        return {"attendance_list": feed, "attendance": feed, "count": len(feed)}
     except Exception as e:
         err = str(e)
         return JSONResponse(status_code=500, content={"error": err, "message": err})
