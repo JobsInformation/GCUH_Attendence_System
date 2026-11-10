@@ -3,248 +3,177 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GCUH Teacher Portal & Live Attendance Monitor</title>
+    <title>GCUH Teacher Attendance Dashboard</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- QRCode.js Library -->
+    <!-- Html5-Qrcode Scanner Library for Generating QR -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
-<body class="bg-gray-50 min-h-screen p-6">
-    <div class="max-w-6xl mx-auto space-y-6">
+<body class="bg-gray-100 min-h-screen p-6">
+    <div class="max-w-4xl mx-auto space-y-6">
         
-        <!-- Header -->
-        <div class="bg-white p-6 rounded-xl shadow-md border border-gray-100">
-            <h1 class="text-2xl font-bold text-gray-800">Government College University Hyderabad</h1>
-            <p class="text-sm text-gray-500">Secure Teacher Portal & Live Attendance Monitor</p>
-        </div>
-
-        <!-- Authentication Card -->
-        <div class="bg-white p-6 rounded-xl shadow-md border border-gray-100">
-            <h2 class="text-lg font-semibold text-gray-700 mb-4">🔐 Teacher Authentication</h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <input type="text" id="username" placeholder="Username (e.g. admin)" value="admin" class="border border-gray-300 rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <input type="password" id="password" placeholder="Password (e.g. securepassword123)" value="securepassword123" class="border border-gray-300 rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <!-- Top Header -->
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 flex justify-between items-center">
+            <div>
+                <h1 class="text-xl font-bold text-gray-800">GCUH Teacher Portal</h1>
+                <p class="text-sm text-gray-500">Government College University Hyderabad</p>
             </div>
-            <div class="mt-4 flex items-center justify-between">
-                <button onclick="loginTeacher()" class="bg-blue-600 hover:bg-blue-700 text-white font-medium px-5 py-2.5 rounded-lg transition-colors shadow">
-                    🔑 Login & Authenticate
-                </button>
-                <span id="loginStatus" class="text-sm font-medium text-gray-500">Status: Not authenticated</span>
-            </div>
-        </div>
-
-        <!-- Lecture Control & Dashboard -->
-        <div class="bg-white p-6 rounded-xl shadow-md border border-gray-100 space-y-4">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Teacher ID</label>
-                    <input type="text" id="teacherId" value="IT-Instructor-01" class="w-full border border-gray-300 rounded-lg p-2.5 bg-gray-50 text-gray-700">
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Lecture ID</label>
-                    <input type="text" id="lectureId" placeholder="Auto-generated on start" readonly class="w-full border border-gray-300 rounded-lg p-2.5 bg-gray-50 text-gray-500">
-                </div>
-            </div>
-
-            <button onclick="startLectureSession()" class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-xl transition-colors shadow-md text-center">
-                🚀 Start Lecture & Generate Dynamic QR
+            <button onclick="logout()" class="bg-red-50 hover:bg-red-100 text-red-600 font-semibold px-4 py-2 rounded-xl transition-colors text-sm">
+                🚪 Logout
             </button>
         </div>
 
-        <!-- Monitor Grid -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
-            <!-- QR Display Box -->
-            <div class="bg-white p-6 rounded-xl shadow-md border border-gray-100 flex flex-col items-center justify-center space-y-4">
-                <h3 class="text-lg font-semibold text-gray-700 self-start">Active Secure Token</h3>
-                <div id="activeTokenText" class="text-xs bg-gray-100 text-gray-600 px-3 py-1.5 rounded-full font-mono">Waiting for session...</div>
-                
-                <div id="qrCodeContainer" class="w-48 h-48 border-2 border-dashed border-gray-200 rounded-xl flex items-center justify-center bg-gray-50 p-2">
-                    <span class="text-gray-400 text-sm">QR Code will appear here</span>
-                </div>
-                <div id="timerText" class="text-xs text-gray-500 font-medium"></div>
-            </div>
-
-            <!-- Live Attendance Feed -->
-            <div class="bg-white p-6 rounded-xl shadow-md border border-gray-100 flex flex-col justify-between">
+        <!-- Lecture Control Card -->
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 space-y-4">
+            <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
                 <div>
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="text-lg font-semibold text-gray-700">Live Attendance Feed</h3>
-                        <span id="presentCountBadge" class="bg-green-100 text-green-800 text-xs font-bold px-2.5 py-1 rounded-full">0 Present</span>
-                    </div>
-
-                    <div class="overflow-x-auto max-h-64 overflow-y-auto border border-gray-100 rounded-lg">
-                        <table class="w-full text-left border-collapse text-sm">
-                            <thead class="bg-gray-50 sticky top-0 text-gray-600">
-                                <tr>
-                                    <th class="p-3 border-b">Roll Number</th>
-                                    <th class="p-3 border-b">Name</th>
-                                    <th class="p-3 border-b">Time</th>
-                                </tr>
-                            </thead>
-                            <tbody id="attendanceTableBody">
-                                <tr>
-                                    <td colspan="3" class="p-4 text-center text-gray-400">No students checked in yet.</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
+                    <h2 class="text-lg font-semibold text-gray-800">Active Lecture Session</h2>
+                    <p id="lectureStatus" class="text-sm text-gray-500">No active lecture started.</p>
                 </div>
-
-                <div class="mt-4 flex justify-end">
-                    <button onclick="exportCSV()" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors shadow">
-                        📥 Export CSV
-                    </button>
-                </div>
+                <button onclick="startLecture()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-xl transition-colors shadow-sm">
+                    🚀 Start New Lecture & Generate QR
+                </button>
             </div>
 
+            <!-- QR Code Display Area -->
+            <div id="qrContainer" class="hidden flex flex-col items-center justify-center p-6 bg-gray-50 rounded-xl border border-dashed border-gray-300 space-y-3">
+                <div id="qrcode" class="bg-white p-4 rounded-xl shadow-sm"></div>
+                <p class="text-xs text-gray-500 font-mono text-center">Scan this rotating secure token using the student portal.</p>
+            </div>
         </div>
+
+        <!-- Live Attendance Feed Card -->
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 space-y-4">
+            <div class="flex justify-between items-center">
+                <h3 class="text-lg font-semibold text-gray-800">Live Attendance Feed (<span id="attendanceCount">0</span>)</h3>
+                <button onclick="fetchAttendance()" class="text-blue-600 hover:text-blue-700 text-sm font-semibold">
+                    🔄 Refresh Feed
+                </button>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase">
+                            <th class="p-3">Roll Number</th>
+                            <th class="p-3">Student Name</th>
+                            <th class="p-3">Department</th>
+                            <th class="p-3">Time Marked</th>
+                        </tr>
+                    </thead>
+                    <tbody id="attendanceTableBody" class="divide-y divide-gray-100 text-sm text-gray-700">
+                        <tr>
+                            <td colspan="4" class="p-4 text-center text-gray-400">Start a lecture to view live attendance.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
     </div>
 
     <script>
-        let authToken = "";
-        let currentLectureId = "";
-        let rotationInterval = null;
-        let reportInterval = null;
+        let currentLectureId = null;
+        let tokenInterval = null;
 
-        async function loginTeacher() {
-            const username = document.getElementById('username').value.trim();
-            const password = document.getElementById('password').value.trim();
-            const statusEl = document.getElementById('loginStatus');
-
-            try {
-                const res = await fetch('/api/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password })
-                });
-
-                if (!res.ok) throw new Error("Invalid credentials");
-                const data = await res.json();
-                
-                authToken = data.access_token || "admin";
-                statusEl.innerText = "Status: Logged in successfully as admin ✅";
-                statusEl.className = "text-sm font-medium text-green-600";
-            } catch (err) {
-                console.error("Login Error:", err);
-                statusEl.innerText = "Status: Login failed (401 ❌)";
-                statusEl.className = "text-sm font-medium text-red-600";
+        // Check authentication on load
+        window.onload = function() {
+            const token = localStorage.getItem('access_token');
+            if (!token) {
+                window.location.href = 'index.html';
             }
+        };
+
+        function logout() {
+            localStorage.removeItem('access_token');
+            window.location.href = 'index.html';
         }
 
-        async function startLectureSession() {
-            if (!authToken) {
-                alert("Please log in first.");
-                return;
+        async function apiCall(url, options = {}) {
+            const res = await fetch(url, options);
+            if (res.status === 401) {
+                // Session expired or unauthorized
+                localStorage.removeItem('access_token');
+                alert("Session expired. Please log in again.");
+                window.location.href = 'index.html';
+                throw new Error("Unauthorized");
             }
-
-            const teacherId = document.getElementById('teacherId').value.trim();
-
-            try {
-                const startRes = await fetch('/api/lecture/start', {
-                    method: "POST",
-                    headers: { 
-                        "Content-Type": "application/json",
-                        "Authorization": `Bearer ${authToken}`
-                    },
-                    body: JSON.stringify({ teacher_id: teacherId })
-                });
-
-                if (!startRes.ok) throw new Error("Failed to start lecture");
-                const startData = await startRes.json();
-                
-                currentLectureId = startData.lecture_id;
-                document.getElementById('lectureId').value = currentLectureId;
-
-                fetchAndRenderQR(currentLectureId);
-                fetchAttendanceReport(currentLectureId);
-
-                if (rotationInterval) clearInterval(rotationInterval);
-                let timeLeft = 10;
-                
-                rotationInterval = setInterval(() => {
-                    timeLeft--;
-                    document.getElementById('timerText').innerText = `Refreshing in ${timeLeft}s...`;
-                    if (timeLeft <= 0) {
-                        fetchAndRenderQR(currentLectureId);
-                        timeLeft = 10;
-                    }
-                }, 1000);
-
-                if (reportInterval) clearInterval(reportInterval);
-                reportInterval = setInterval(() => {
-                    if (currentLectureId && currentLectureId !== "undefined") {
-                        fetchAttendanceReport(currentLectureId);
-                    }
-                }, 5000);
-
-            } catch (err) {
-                console.error("Lecture Start Error:", err);
-                alert("Error starting lecture: Unauthorized or connection error");
-            }
+            return res;
         }
 
-        async function fetchAndRenderQR(lectureId) {
-            if (!lectureId || lectureId === "undefined") return;
-
+        async function startLecture() {
             try {
-                const res = await fetch(`/api/lecture/${lectureId}/token`);
-                if (!res.ok) throw new Error("Token fetch failed");
+                const res = await apiCall('/api/lecture/start', { method: 'POST' });
                 const data = await res.json();
                 
-                const token = data.token || data.secure_token;
-                document.getElementById('activeTokenText').innerText = `Token: ${token}`;
-                
-                const qrContainer = document.getElementById('qrCodeContainer');
-                if (qrContainer) {
-                    qrContainer.innerHTML = '';
-                    new QRCode(qrContainer, {
-                        text: token,
-                        width: 170,
-                        height: 170
-                    });
+                if (data.success) {
+                    currentLectureId = data.lecture_id;
+                    document.getElementById('lectureStatusinnerText') = `Active Lecture: ${currentLectureId}`;
+                    document.getElementById('qrContainer').classList.remove('hidden');
+                    
+                    displayQRCode(data.secure_token);
+                    
+                    // Refresh token every 10 seconds for security rotation
+                    if (tokenInterval) clearInterval(tokenInterval);
+                    tokenInterval = setInterval(() => rotateToken(currentLectureId), 10000);
+
+                    // Start polling attendance
+                    setInterval(fetchAttendance, 5000);
                 }
             } catch (err) {
-                console.error("QR Fetch Error:", err);
-                document.getElementById('qrCodeContainer').innerHTML = '<span class="text-red-500 font-semibold text-xs">Connection Error</span>';
+                console.error("Error starting lecture:", err);
             }
         }
 
-        async function fetchAttendanceReport(lectureId) {
-            if (!lectureId || lectureId === "undefined") return;
+        async function rotateToken(lectureId) {
+            try {
+                const res = await apiCall(`/api/lecture/${lectureId}/token`);
+                const data = await res.json();
+                if (data.success) {
+                    displayQRCode(data.token);
+                }
+            } catch (err) {
+                console.error("Error rotating token:", err);
+            }
+        }
+
+        function displayQRCode(tokenText) {
+            document.getElementById('qrcode').innerHTML = "";
+            new QRCode(document.getElementById('qrcode'), {
+                text: tokenText,
+                width: 200,
+                height: 200
+            });
+        }
+
+        async function fetchAttendance() {
+            if (!currentLectureId) return;
 
             try {
-                const res = await fetch(`/api/teacher/reports/${lectureId}`);
-                if (!res.ok) return;
+                const res = await apiCall(`/api/teacher/reports/${currentLectureId}`);
                 const data = await res.json();
-                
-                const list = data.attendance_list || data.attendance || [];
-                const tbody = document.getElementById('attendanceTableBody');
-                document.getElementById('presentCountBadge').innerText = `${list.length} Present`;
 
-                if (list.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="3" class="p-4 text-center text-gray-400">No students checked in yet.</td></tr>`;
-                    return;
+                if (data.success) {
+                    const tbody = document.getElementById('attendanceTableBody');
+                    document.getElementById('attendanceCount').innerText = data.count;
+
+                    if (data.attendance_list.length === 0) {
+                        tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-gray-400">Waiting for students to check in...</td></tr>`;
+                        return;
+                    }
+
+                    tbody.innerHTML = data.attendance_list.map(row => `
+                        <tr class="hover:bg-gray-50">
+                            <td class="p-3 font-mono font-semibold text-blue-600">${row.roll_number}</td>
+                            <td class="p-3 font-medium">${row.name}</td>
+                            <td class="p-3 text-gray-500">${row.department}</td>
+                            <td class="p-3 text-gray-400 text-xs">${row.time}</td>
+                        </tr>
+                    `).join('');
                 }
-
-                tbody.innerHTML = list.map(item => `
-                    <tr class="border-b hover:bg-gray-50">
-                        <td class="p-3 font-medium text-gray-700">${item.roll_number}</td>
-                        <td class="p-3 text-gray-600">${item.name}</td>
-                        <td class="p-3 text-gray-400 text-xs">${item.time}</td>
-                    </tr>
-                `).join('');
             } catch (err) {
-                console.error("Report Poll Error:", err);
+                console.error("Error fetching attendance:", err);
             }
-        }
-
-        function exportCSV() {
-            if (!currentLectureId) {
-                alert("No active lecture to export.");
-                return;
-            }
-            window.location.href = `/api/teacher/reports/${currentLectureId}?export=csv`;
         }
     </script>
 </body>
