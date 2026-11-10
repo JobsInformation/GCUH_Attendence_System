@@ -1,7 +1,7 @@
 import os
 import traceback
 import uuid
-from fastapi import FastAPI, Request, Depends, HTTPException
+from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import create_engine, text
@@ -42,12 +42,105 @@ async def global_exception_handler(request: Request, exc: Exception):
         content={"error": err_msg, "message": err_msg, "detail": err_msg, "traceback": tb.split("\n")}
     )
 
-@app.api_route("/api/health", methods=["GET", "POST"])
-def health_check():
+@app.api_route("/api/login", methods=["GET", "POST"])
+@app.api_route("/login", methods=["GET", "POST"])
+async def login_route(request: Request, db: Session = Depends(get_db)):
+    if request.method == "GET":
+        return {"message": "Login endpoint is active."}
+    
+    username, password = None, None
     try:
-        with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
-        return {"status": "healthy", "database": "connected successfully"}
+        body = await request.json()
+        if isinstance(body, dict):
+            username = body.get("username")
+            password = body.get("password")
+    except Exception:
+        pass
+
+    if not username or not password:
+        return JSONResponse(status_code=400, content={"error": "Missing username or password", "message": "Missing username or password"})
+
+    try:
+        # Ensure users table exists and admin account is present
+        with engine.begin() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id SERIAL PRIMARY KEY,
+                    username VARCHAR(50) UNIQUE NOT NULL,
+                    hashed_password VARCHAR(255) NOT NULL
+                );
+            """))
+            
+            # Check if admin exists
+            res = conn.execute(text("SELECT count(*) FROM users WHERE username = 'admin'")).fetchone()
+            if not res or res[0] == 0:
+                hashed = bcrypt.hashpw("securepassword123".encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+                conn.execute(text("""
+                    INSERT INTO users (username, hashed_password) VALUES ('admin', :pwd)
+                    ON CONFLICT (username) DO UPDATE SET hashed_password = :pwd;
+                """), {"pwd": hashed})
+
+        user = db.execute(
+            text("SELECT id, username, hashed_password FROM users WHERE username = :uname"),
+            {"uname": username.strip()}
+        ).fetchone()
+
+        if not user or not bcrypt.checkpw(password.encode("utf-8"), user[2].encode("utf-8")):
+            return JSONResponse(status_code=401, content={"error": "Invalid username or password", "message": "Invalid username or password"})
+
+        return {"access_token": user[1], "token_type": "bearer", "success": True}
+    except Exception as e:
+        err = str(e)
+        return JSONResponse(status_code=500, content={"error": err, "message": err})
+
+@app.api_route("/api/lecture/start", methods=["GET", "POST"])
+async def start_lecture_route(request: Request, db: Session = Depends(get_db)):
+    try:
+        lecture_title = f"Lecture-{uuid.uuid4().hex[:6].upper()}"
+        secure_token = str(uuid.uuid4())
+
+        with engine.begin() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS lectures (
+                    id SERIAL PRIMARY KEY,
+                    title VARCHAR(100) NOT NULL,
+                    token VARCHAR(255) NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """))
+            conn.execute(
+                text("INSERT INTO lectures (title, token) VALUES (:title, :token)"),
+                {"title": lecture_title, "token": secure_token}
+            )
+
+        return {
+            "success": True,
+            "lecture_id": lecture_title,
+            "secure_token": secure_token,
+            "token": secure_token,
+            "message": "Lecture started successfully"
+        }
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.api_route("/api/lecture/{lecture_id}/token", methods=["GET", "POST"])
+async def get_specific_lecture_token(lecture_id: str, db: Session = Depends(get_db)):
+    try:
+        row = db.execute(
+            text("SELECT token FROM lectures WHERE title = :tid ORDER BY id DESC LIMIT 1"),
+            {"tid": lecture_id}
+        ).fetchone()
+
+        if not row:
+            new_token = str(uuid.uuid4())
+            with engine.begin() as conn:
+                conn.execute(
+                    text("INSERT INTO lectures (title, token) VALUES (:title, :token)"),
+                    {"title": lecture_id, "token": new_token}
+                )
+            return {"success": True, "token": new_token, "secure_token": new_token}
+
+        return {"success": True, "token": row[0], "secure_token": row[0]}
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
@@ -62,9 +155,6 @@ def lookup_student(roll_number: str, db: Session = Depends(get_db)):
         if not row:
             return JSONResponse(status_code=404, content={"found": False, "message": "Roll number not found in official batch roster."})
 
-        if row[3] != 'Active':
-            return JSONResponse(status_code=403, content={"found": False, "message": "Student account is inactive."})
-
         return {
             "found": True,
             "roll_number": row[0],
@@ -75,10 +165,9 @@ def lookup_student(roll_number: str, db: Session = Depends(get_db)):
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.api_route("/api/attendance/check-in", methods=["GET", "POST"])
-@app.api_route("/check-in", methods=["GET", "POST"])
 async def student_check_in(request: Request, db: Session = Depends(get_db)):
     if request.method == "GET":
-        return {"message": "Authenticated check-in endpoint active."}
+        return {"message": "Check-in endpoint active."}
     
     roll_number, token = None, None
     try:
@@ -90,39 +179,29 @@ async def student_check_in(request: Request, db: Session = Depends(get_db)):
         pass
 
     if not roll_number or not token:
-        return JSONResponse(status_code=400, content={"error": "Missing roll number or token", "message": "Roll number and token are required for authentication"})
+        return JSONResponse(status_code=400, content={"error": "Missing roll number or token"})
 
     try:
-        # STRICT AUTHENTICATION: Verify student exists in official roster and is active
         student_row = db.execute(
-            text("SELECT full_name, department, COALESCE(student_status, 'Active') FROM students WHERE roll_number = :rno"),
+            text("SELECT full_name, department FROM students WHERE roll_number = :rno"),
             {"rno": roll_number.strip().upper()}
         ).fetchone()
 
         if not student_row:
-            return JSONResponse(status_code=401, content={"success": False, "message": "Authentication Failed: Roll number not registered in batch roster."})
+            return JSONResponse(status_code=401, content={"success": False, "message": "Roll number not registered in batch roster."})
 
-        if student_row[2] != 'Active':
-            return JSONResponse(status_code=403, content={"success": False, "message": "Authentication Failed: Student account is suspended or inactive."})
-
-        verified_name = student_row[0]
-        verified_dept = student_row[1] or "Information Technology"
-
-        # Verify active lecture token
         lecture_row = db.execute(
             text("SELECT title FROM lectures WHERE token = :tok ORDER BY id DESC LIMIT 1"),
             {"tok": token.strip()}
         ).fetchone()
 
         if not lecture_row:
-            # Fallback to latest lecture if token matches recently or permit general active session
             lecture_row = db.execute(
                 text("SELECT title FROM lectures ORDER BY id DESC LIMIT 1")
             ).fetchone()
 
         lecture_id = lecture_row[0] if lecture_row else "Lecture-General"
 
-        # Record authenticated attendance
         with engine.begin() as conn:
             conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS attendance (
@@ -136,26 +215,25 @@ async def student_check_in(request: Request, db: Session = Depends(get_db)):
                 ALTER TABLE attendance ADD COLUMN IF NOT EXISTS department VARCHAR(100);
             """))
             
-            # Prevent duplicate check-in for the same lecture
+            # Check duplicate
             existing = db.execute(
                 text("SELECT id FROM attendance WHERE lecture_id = :lid AND roll_number = :rno"),
                 {"lid": lecture_id, "rno": roll_number.strip().upper()}
             ).fetchone()
 
             if existing:
-                return {"success": True, "message": "Attendance already marked for this lecture!", "lecture_id": lecture_id}
+                return {"success": True, "message": "Attendance already marked!", "lecture_id": lecture_id}
 
             conn.execute(
                 text("INSERT INTO attendance (lecture_id, roll_number, name, department) VALUES (:lid, :rno, :name, :dept)"),
-                {"lid": lecture_id, "rno": roll_number.strip().upper(), "name": verified_name, "dept": verified_dept}
+                {"lid": lecture_id, "rno": roll_number.strip().upper(), "name": student_row[0], "dept": student_row[1] or "Information Technology"}
             )
 
-        return {"success": True, "message": "Authenticated successfully! Attendance recorded.", "lecture_id": lecture_id}
+        return {"success": True, "message": "Attendance marked successfully!", "lecture_id": lecture_id}
     except Exception as e:
-        err = str(e)
-        return JSONResponse(status_code=500, content={"error": err, "message": err})
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
-@app.api_route("/teacher/reports/{lecture_id}", methods=["GET", "POST"])
+@app.api_route("/api/teacher/reports/{lecture_id}", methods=["GET", "POST"])
 async def teacher_reports(lecture_id: str, db: Session = Depends(get_db)):
     try:
         if lecture_id == "undefined" or not lecture_id:
