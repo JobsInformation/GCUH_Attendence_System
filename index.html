@@ -1,16 +1,85 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>GCUH IT Enterprise Attendance System</title>
-    <style>
-        body { font-family: sans-serif; text-align: center; margin-top: 20%; background-color: #0B192C; color: white; }
-        a { display: inline-block; margin: 10px; padding: 15px 30px; background-color: #10b981; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; }
-        .teacher-btn { background-color: #3b82f6; }
-    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GCUH Attendance Portal - Login</title>
+    <!-- Compiled Tailwind Production CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <!-- Inline Favicon -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔐</text></svg>">
 </head>
-<body>
-    <h1>GCUH IT Attendance System</h1>
-    <a href="/student.html">🎓 Go to Student Portal</a>
-    <a href="/teacher.html" class="teacher-btn">👨‍🏫 Go to Teacher Dashboard</a>
+<body class="bg-gray-50 min-h-screen flex items-center justify-center p-6">
+    <div class="max-w-md w-full bg-white p-8 rounded-2xl shadow-lg border border-gray-100 space-y-6">
+        
+        <!-- Header -->
+        <div class="text-center space-y-1">
+            <h1 class="text-xl font-bold text-gray-800">Government College University Hyderabad</h1>
+            <p class="text-sm text-gray-500">Teacher Login Portal</p>
+        </div>
+
+        <!-- Login Form -->
+        <form id="loginForm" onsubmit="handleLogin(event)" class="space-y-4">
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Username</label>
+                <input type="text" id="username" required placeholder="Enter username (e.g. admin)" class="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Password</label>
+                <input type="password" id="password" required placeholder="Enter password" class="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+
+            <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition-colors shadow-md">
+                🔑 Login to Teacher Dashboard
+            </button>
+        </form>
+
+        <!-- Status Message -->
+        <div id="loginStatus" class="text-center text-sm font-medium hidden"></div>
+
+        <!-- Quick Links -->
+        <div class="text-center pt-4 border-t border-gray-100">
+            <a href="student.html" class="text-xs text-blue-600 hover:underline">Switch to Student Portal &rarr;</a>
+        </div>
+    </div>
+
+    <script>
+        async function handleLogin(event) {
+            event.preventDefault();
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value.trim();
+            const statusEl = document.getElementById('loginStatus');
+
+            statusEl.classList.remove('hidden', 'text-green-600', 'text-red-600');
+            statusEl.innerText = "Authenticating...";
+            statusEl.className = "text-center text-sm font-medium text-blue-600";
+
+            try {
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: username, password: password })
+                });
+
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || "Login failed");
+
+                // Save token and redirect directly to teacher dashboard
+                localStorage.setItem('access_token', data.access_token || "authenticated");
+                statusEl.innerText = "✅ Login successful! Redirecting...";
+                statusEl.className = "text-center text-sm font-medium text-green-600";
+                
+                setTimeout(() => {
+                    window.location.href = 'teacher.html';
+                }, 800);
+
+            } catch (err) {
+                console.error("Login Error:", err);
+                statusEl.innerText = `❌ Error: ${err.message}`;
+                statusEl.className = "text-center text-sm font-medium text-red-600";
+            }
+        }
+    </script>
 </body>
 </html>
