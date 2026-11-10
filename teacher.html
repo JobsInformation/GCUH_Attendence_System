@@ -4,9 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GCUH Teacher Attendance Dashboard</title>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Html5-Qrcode Scanner Library for Generating QR -->
+    <!-- Compiled Tailwind Production CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <!-- Inline Favicon -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👨‍🏫</text></svg>">
+    <!-- QR Code Generator Library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body class="bg-gray-100 min-h-screen p-6">
@@ -76,7 +78,6 @@
         let currentLectureId = null;
         let tokenInterval = null;
 
-        // Check authentication on load
         window.onload = function() {
             const token = localStorage.getItem('access_token');
             if (!token) {
@@ -92,7 +93,6 @@
         async function apiCall(url, options = {}) {
             const res = await fetch(url, options);
             if (res.status === 401) {
-                // Session expired or unauthorized
                 localStorage.removeItem('access_token');
                 alert("Session expired. Please log in again.");
                 window.location.href = 'index.html';
@@ -108,16 +108,14 @@
                 
                 if (data.success) {
                     currentLectureId = data.lecture_id;
-                    document.getElementById('lectureStatusinnerText') = `Active Lecture: ${currentLectureId}`;
+                    document.getElementById('lectureStatus').innerText = `Active Lecture: ${currentLectureId}`;
                     document.getElementById('qrContainer').classList.remove('hidden');
                     
                     displayQRCode(data.secure_token);
                     
-                    // Refresh token every 10 seconds for security rotation
                     if (tokenInterval) clearInterval(tokenInterval);
                     tokenInterval = setInterval(() => rotateToken(currentLectureId), 10000);
 
-                    // Start polling attendance
                     setInterval(fetchAttendance, 5000);
                 }
             } catch (err) {

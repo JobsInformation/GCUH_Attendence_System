@@ -4,8 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GCUH Student Attendance Portal</title>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Compiled Tailwind Production CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <!-- Inline Favicon -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎓</text></svg>">
     <!-- Html5-Qrcode Scanner Library -->
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 </head>
@@ -80,17 +82,12 @@
                 { facingMode: "environment" },
                 { fps: 10, qrbox: { width: 250, height: 250 } },
                 (decodedText, decodedResult) => {
-                    // Success callback when QR is scanned
                     document.getElementById('secureToken').value = decodedText;
-                    
-                    // Stop scanner after successful scan
                     html5QrCode.stop().then(() => {
                         readerDiv.classList.add('hidden');
                     }).catch(err => console.error("Failed to stop scanner.", err));
                 },
-                (errorMessage) => {
-                    // Scanning error or searching frame (safe to ignore)
-                }
+                (errorMessage) => {}
             ).catch(err => {
                 console.error("Unable to start scanning.", err);
                 alert("Camera access denied or unavailable. Please check mobile browser permissions.");
